@@ -1,16 +1,20 @@
 #!/bin/sh
 
 #  112dg.sh
-#  10/14/2012 Donny Lynskey (AKA yarrimapirate@XDA, fishsticks elsewhere)
+
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
 #
-#  A script to downgrade HBoot from 1.15 or 1.19 to 1.12
-#  
-#  Currently only completes the initial backup and bricking.  Manual
-#  restoration still required to complete downgrade.
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
 #
-#  For HTC EVO 4G LTE
-#
-#  Permission granted to use or modify all/part of this code.  Please credit the author.
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
 
 chmod +x ./adb 
 chmod +x ./fastboot 
