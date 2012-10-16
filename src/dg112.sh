@@ -18,6 +18,10 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+if [ "$(whoami)" != 'root' ]; then
+        echo "$0 requires root.  (sudo $0)"
+        exit 1;
+fi
 
 chmod +x ./adb 
 chmod +x ./fastboot 
@@ -76,6 +80,12 @@ dd if=blankp4 bs=555 skip=1 >> ./fsp4 2> /dev/null		# Last part
 rm imei.txt					# Cleanup
 rm imei2.txt
 
+s=$(stat -c %s ./fsp4)								# Get size of fsp4  (Should be exactly 1024 bytes)
+if [ $s != 1024 ]; then								# Stop if size isn't right
+	echo  "FATAL:  Failsafe P4 size mismatch."
+	exit
+fi
+
 echo  "Success.  Rebooting phone."
 echo ""
 
@@ -95,7 +105,20 @@ echo  "Pulling /dev/block/mmcblk0p4 backup from phone..."
 echo  ""
 
 ./adb shell "dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4"  	#  Copy P4 data to internal storage
-./adb pull /sdcard/bakp4 ./bakp4				#  Pull file from internal storage to local machine
+./adb pull /sdcard/bakp4 ./bakp4							#  Pull file from internal storage to local machine
+
+if [ -e bakp4 ]; then										# Did the bakp4 get created?
+else
+	echo  "FATAL:  Backup mmcblk0p4 creation failed."
+	exit
+fi
+
+s=0
+s=$(stat -c %s ./bakp4)									# Get size of bakp4  (Should be exactly 1024 bytes)
+if [ $s != 1024 ]; then									# Stop if size isn't right
+	echo  "FATAL:  Backup mmcblk0p4 size mismatch."
+	exit
+fi
 
 read -p "Press Enter to continue..." p
 
