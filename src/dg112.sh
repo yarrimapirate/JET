@@ -26,32 +26,32 @@ fi
 #  Check for required files
 
 if [ ! -e "./killp4" ]; then
-	printf  "FATAL:  File \'killp4\' missing."
+	printf  "FATAL:  File killp4 missing.\n\n"
 	exit 1
 fi
 
 if [ ! -e "./blankp4" ]; then
-	printf  "FATAL:  File \'blankp4\' missing."
+	printf  "FATAL:  File blankp4 missing.\n\n"
 	exit 1
 fi
 
-if [ ! -e "./hboot_1.12.000_signedbyaa.nb0" ]; then
-	printf  "FATAL:  File \'hboot_1.12.0000_signedbyaa.nb0\' missing."
+if [ ! -e "./hboot_1.12.0000_signedbyaa.nb0" ]; then
+	printf  "FATAL:  File hboot_1.12.0000_signedbyaa.nb0 missing.\n\n"
 	exit 1
 fi
 
 if [ ! -e "./emmc_recover" ]; then
-	printf  "FATAL:  File \'emmc_recover\' missing."
+	printf  "FATAL:  File \'emmc_recover\' missing.\n\n"
 	exit 1
 fi
 
 if [ ! -e "./adb" ]; then
-	printf  "FATAL:  File \'adb\' missing."
+	printf  "FATAL:  File \'adb\' missing.\n\n"
 	exit 1
 fi
 
 if [ ! -e "./fastboot" ]; then
-	printf  "FATAL:  File \'fastboot\' missing."
+	printf  "FATAL:  File \'fastboot\' missing.\n\n"
 	exit 1
 fi
 
@@ -65,9 +65,7 @@ printf  "Script for HTC EVO 4G LTE bootloader downgrade to v1.12.\n\n"
 printf  "This script will put backup critical partition data and then put your phone\n"
 printf  "into Qualcomm download mode (AKA Brick).\n\n"
 printf  "Before running this script, you should have TWRP loaded onto your phone.\n"
-printf  "This script requires that you are root (sudo) on the linux host (not the\n"
-printf  "phone).  If you need to, please press Ctrl-C to exit and run this script\n"
-printf  "as root.  Plug your phone in via USB and ensure both USB debugging and\n"
+printf  "Plug your phone in via USB and ensure both USB debugging and\n"
 printf  "fastboot are enabled.\n\n"
 
 read -p "Press Enter to continue..." p
@@ -124,17 +122,17 @@ sleep 30
 
 printf  "Pulling /dev/block/mmcblk0p4 backup from phone...\n\n"
 
-./adb shell "dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4"  				#  Copy P4 data to internal storage
+./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4  				#  Copy P4 data to internal storage
 
-internalbak=$(./adb shell "if [ -e /sdcard/bakp4 ]; then echo 1; fi")	#  Check for successful file creation on internal storage
+internalbak=$("./adb shell if [ -e /sdcard/bakp4 ] ; then echo 1 ; fi")	#  Check for successful file creation on internal storage
 if [ $internalbak != 1 ]; then
 	printf  "FATAL:  Failure to create mmcblk0p4 backup on internal storage (/sdcard).\n\n"
 	exit 1
 fi
 
-./adb shell "dd if=/dev/block/mmcblk0p4 of=/sdcard2/bakp4"  			#  Copy P4 data to external storage
+./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard2/bakp4  				#  Copy P4 data to external storage
 
-sdcardbak=$(./adb shell "if [ -e /sdcard2/bakp4 ]; then echo 1; fi")	#  Check that SD Card Backup was made
+sdcardbak=$("./adb shell if [ -e /sdcard2/bakp4 ] ; then echo 1 ; fi")	#  Check that SD Card Backup was made
 if [ $sdcardbak != 1 ]; then
 	printf  "WARNING: A backup of your Partition 4 was not made on the SD Card.\n"
 	printf  "Is an SD Card in your phone? Is it full?\n"
@@ -152,7 +150,8 @@ if [ $sdcardbak != 1 ]; then
 	}
 ./adb pull /sdcard/bakp4 ./bakp4							#  Pull file from internal storage to local machine
 
-if [ -e ./bakp4 ]; then										#  Did the bakp4 get created?
+if [ -e ./bakp4 ]; then	
+	continue												#  Did the bakp4 get created?
 else
 	printf  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
 	exit 1
@@ -248,7 +247,7 @@ printf  "accessible at /dev/sd$brickdrive\n\n"
 modprobe -r qcserial																	# Reset qcserial kernel module and clear old blocks
 mknod /dev/ttyUSB0 c 188 0																# Create block device for emmc_recover
 ./emmc_recover -r
-./emmc_recover -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/sd"$brickdrive"12 -c 24576		# Flash Signed 1.12 HBoot
+./emmc_recover -q -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/sd"$brickdrive"12 -c 24576		# Flash Signed 1.12 HBoot
 
 printf  "/nSuccessfully loaded HBOOT 1.12.0000!/n/n/n"
 printf  "The final step is restoring your backup /dev/block/mmcblk0p4./n/n"
@@ -262,7 +261,7 @@ printf  "accessible at /dev/sd$brickdrive\n\n"
 modprobe -r qcserial																	# Reset qcserial kernel module and clear old blocks
 mknod /dev/ttyUSB0 c 188 0																# Create block device for emmc_recover
 ./emmc_recover -r
-./emmc_recover -f ./bakp4 -d /dev/sd"$brickdrive"4										# Flash backup p4 file
+./emmc_recover -q -f ./bakp4 -d /dev/sd"$brickdrive"4										# Flash backup p4 file
 
 printf  "/nSuccess!/n/n"
 printf  "Your phone should now at least have a charging light on.  Some phones will/n"
