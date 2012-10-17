@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#  dg112.sh - yarrimapirate@XDA v0.1
+#  dg112.sh - yarrimapirate@XDA v0.1 Alpha 2
 #  
 #  A script to aqutomate the force QDL process for downgrading HBoot to 1.12
 #  on the HTC EVO 4G LTE.
