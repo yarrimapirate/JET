@@ -218,9 +218,24 @@ ldascii=$(printf '%d\n' "'$lastdrive")											# Convert letter to ASCII value
 bdascii=$((ldascii+1))															# Increment ASCII Value, store in new variable
 brickdrive=$(printf \\$(printf '%03o' $bdascii))								# Convert brick drive ASCII value to character, store for later use
 
+CheckBrick() {
+	printf  "\nDetecting bricked device...  "
+
+	sleep 3
+	qcserialstate=$(dmesg | grep "qcserial" | tail -1 | awk {print $NF;})
+	if [ $qcserialstate != "detected" ]; then
+		printf  "\n\nCannot detect bricked phone.  Please check your USB connection.\n\n"
+		read -p "Press Enter to retry detection..." p
+		modprobe -r qcserial
+		CheckBrick
+	fi
+}
+
+printf  "Found it!\n\n"
+
 printf  "\nFrom here forward, DO NOT UNPLUG THE PHONE FROM THE USB CABLE!\n\n"
 
-printf  "Now we'll flash the 1.12 bootloader.\n\n"
+printf  "Now flashing the 1.12 bootloader.\n\n"
 printf  "If this process hangs at \"Waiting for /dev/sd"$brickdrive"12...\"  Press and\n"
 printf  "hold the power button on your phone for no less than 30 seconds and\n"
 printf  "then release it.  The process should wake back up a few seconds afterwards.\n"
@@ -232,13 +247,10 @@ printf  "accessible at /dev/sd$brickdrive\n\n"
 
 modprobe -r qcserial																	# Reset qcserial kernel module and clear old blocks
 mknod /dev/ttyUSB0 c 188 0																# Create block device for emmc_recover
+./emmc_recover -r
 ./emmc_recover -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/sd"$brickdrive"12 -c 24576		# Flash Signed 1.12 HBoot
 
 printf  "/nSuccessfully loaded HBOOT 1.12.0000!/n/n/n"
-
-
-printf "Unbricking/n/n"
-
 printf  "The final step is restoring your backup /dev/block/mmcblk0p4./n/n"
 printf  "Once again, if this process hangs at \"Waiting for /dev/sd"$brickdrive"4...\"\n"
 printf  "Press and hold the power button on your phone for no less than 30 seconds and\n"
@@ -249,6 +261,7 @@ printf  "accessible at /dev/sd$brickdrive\n\n"
 
 modprobe -r qcserial																	# Reset qcserial kernel module and clear old blocks
 mknod /dev/ttyUSB0 c 188 0																# Create block device for emmc_recover
+./emmc_recover -r
 ./emmc_recover -f ./bakp4 -d /dev/sd"$brickdrive"4										# Flash backup p4 file
 
 printf  "/nSuccess!/n/n"
