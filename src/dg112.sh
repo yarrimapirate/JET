@@ -16,15 +16,101 @@
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#    alongs with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+
+#  ===  Define Functions
+
+
+GetYN() {
+printf  "[Y]es or [N]o?"
+	read FINAL
+	case $FINAL in
+	y | Y | yes | Yes) continue;;
+	n | N | no | No) exit;;
+	*) FinalQ;;
+	esac
+}
+
+
+
+WakeQDL() {			#Spam pbl_reset until the phone responds
+    wakeresult=`./emmc_recover -r | tail -1`
+    if [ "$wakeresult" = "Cannot reset device" ]; then WakeQDL; fi
+}
+
+
+PrepQDL () {
+  
+  printf  "Resetting qcserial module...\n"
+  modprobe -r qcserial					# Reset qcserial kernel module and clear old blocks
+  sleep 1
+  printf  "Creating block device...\n"
+  mknod /dev/ttyUSB0 c 188 0				# Create block device for emmc_recover
+  printf  "Waking QDL device...\n"
+  WakeQDL
+  sleep 2
+}
+
+
+Flash112 () {
+  
+  flashresult=0
+
+  PrepQDL
+  ./emmc_recover -q -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/sd"$brickdrive"12 -c 24576 | tee ./result	# Flash Signed 1.12 HBoot
+  flashresult=`cat ./result| tail -1`
+  rm ./result
+  if [ "$flashresult" != "Detected mode-switch" ]; then
+    printf "Error flashing HBOOT 112!\n\n"
+    sleep 2
+    printf "Retrying...\n\n"
+    Flash112
+  fi
+}
+
+
+FlashP4() {
+
+  PrepQDL
+  printf "Restoring /dev/block/mmcblk0p4...\n\n"
+  flashresult=`./emmc_recover -q -f ./bakp4 -d /dev/sd"$brickdrive"4 | tail -1`	# Flash backup p4 file
+  if [ "$flashresult" != "Okay" ]; then
+    printf "Error restoring P4 partition!\n\n"
+    sleep 2
+    printf "Retrying...\n\n"
+    FlashP4
+  fi
+}
+
+
+#   Needs Work - disabled for now
+CheckBrick() {
+	printf  "\nDetecting bricked device...  "
+
+	sleep 3
+	qcserialstate=`dmesg | grep 'qcserial' | tail -1 | awk '{print $NF}'`
+	if [ "$qcserialstate" != "detected" ] -a [ "$qcserialstate" != "qcserial" ]; then
+		printf  "\n\nCannot detect bricked phone.  Please check your USB connection.\n\n"
+		read -p "Press Enter to retry detection..." p
+		modprobe -r qcserial
+		CheckBrick
+	fi
+}
+
+
+#  ===  End Functions
+
+
+#  ===  Main
+
+#  Check for Root
 if [ "$(whoami)" != 'root' ]; then
         printf "$0 requires root.  (sudo $0)\n"
         exit 1;
 fi
 
 #  Check for required files
-
 if [ ! -e "./killp4" ]; then
 	printf  "FATAL:  File killp4 missing.\n\n"
 	exit 1
@@ -109,48 +195,42 @@ fi
 printf  "Success.  Rebooting phone.\n\n"
 
 ./fastboot reboot 2> /dev/null
-./adb kill-server > /dev/null
-./adb wait-for-device > /dev/null
+./adb wait-for-device
 
 printf  "Rebooting to recovery...\n\n"
 
 ./adb reboot recovery
 
-printf  "Waiting 45 seconds...\n\n" 
+printf  "Waiting for recovery...\n\n"
+
 sleep 45
 
-./adb kill-server > /dev/null
-./adb start-server > /dev/null
 
 printf  "Pulling /dev/block/mmcblk0p4 backup from phone...\n\n"
 
-./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4 > /dev/null  				#  Copy P4 data to internal storage
+./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4 > /dev/null		#  Copy P4 data to internal storage
 
-#sdstatus = $(./adb shell "if [ -e /sdcard/bakp4 ]; then  echo 1; fi")				#  Check for successful file creation on internal storage
-#if [ $sdstatus != 1 ]; then
+#  Redundant since we check for local bakp4 before continuing.  Save for --recover option
+
+#sdstatus=`./adb shell "if [ -e /sdcard/bakp4 ]; then  echo 1; fi`		#  Check for successful file creation on internal storage
+#if [ "$sdstatus" != "1" ]; then
 #	printf  "FATAL:  Failure to create mmcblk0p4 backup on internal storage (/sdcard).\n\n"
 #	exit 1
 #fi
 # 
-#rm sdstatus
 #
 #./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard2/bakp4 > /dev/null  				#  Copy P4 data to external storage
 #
-#sdstatus = $(./adb shell "if [ -e /sdcard2/bakp4 ]; then  echo 1; fi")				#  Check that SD Card Backup was made
-#if [ $sdstatus != 1 ]; then
+#sdstatus=`./adb shell "if [ -e /sdcard2/bakp4 ]; then  echo 1; fi`				#  Check that SD Card Backup was made
+#if [ "$sdstatus" != "1" ]; then
 #	printf  "WARNING: A backup of your Partition 4 was not made on the SD Card.\n"
 #	printf  "Is an SD Card in your phone? Is it full?\n"
 #	printf  "It's recommended that a backup is made on an SD Card.\n\n"
 #	printf  "You can continue without making a backup, but it's a good idea.\n"
 #	
 #	SDBackup(){
-#	printf  "Continue without SD Card backup? [Y]es or [N]o?"
-#		read BACKUP
-#		case $BACKUP in
-#		y | Y | yes | Yes) continue;;
-#		n | N | no | No) exit;;
-#		*) SDBackup;;
-#		esac
+#	printf  "Continue without SD Card backup?"
+#	GetYN
 #	}
 #
 #rm sdstatus
@@ -179,18 +259,10 @@ printf  "data on /dev/block/mmcblk0p4.  This will cause the phone to enter\n"
 printf  "Qualcomm download mode (or brick if you prefer).\n\n"
 
 
-FinalQ() {
-printf  "Are you sure you would like to continue? Once started, this cannot\n"
-printf  "be cancelled. [Y]es or [N]o?"
-	read FINAL
-	case $FINAL in
-	y | Y | yes | Yes) continue;;
-	n | N | no | No) exit;;
-	*) FinalQ;;
-	esac
-}
 
-FinalQ 
+printf  "The process can't be stopped after this.  Continue?\n"
+GetYN
+ 
 
 printf  "\n\nDo NOT interrupt this process or reboot your computer.\n\n"
 printf  "Corrupting /dev/block/mmcblk0p4...\n\n"
@@ -223,22 +295,9 @@ ldascii=$(printf '%d\n' "'$lastdrive")											# Convert letter to ASCII value
 bdascii=$((ldascii+1))															# Increment ASCII Value, store in new variable
 brickdrive=$(printf \\$(printf '%03o' $bdascii))								# Convert brick drive ASCII value to character, store for later use
 
-#CheckBrick() {
-#	printf  "\nDetecting bricked device...  "
-#
-#	sleep 3
-#	qcserialstate=$("dmesg | grep 'qcserial' | tail -1 | awk {print $NF;}")
-#	if [ $qcserialstate != "detected" ]; then
-#		printf  "\n\nCannot detect bricked phone.  Please check your USB connection.\n\n"
-#		read -p "Press Enter to retry detection..." p
-#		modprobe -r qcserial
-#		CheckBrick
-#	fi
-#}
-
 #CheckBrick
 
-#printf  "Found it!\n\n"
+printf  "Found it!\n\n"
 
 printf  "\nFrom here forward, DO NOT UNPLUG THE PHONE FROM THE USB CABLE!\n\n"
 
@@ -252,16 +311,7 @@ printf  "If this process fails to complete, you will need to complete the manual
 printf  "using the post on XDA.  In that case, your bricked phone should be\n"
 printf  "accessible at /dev/sd$brickdrive\n\n"
 
-printf  "Resetting qcserial module...\n"
-modprobe -r qcserial					# Reset qcserial kernel module and clear old blocks
-sleep 5
-printf  "Creating block device...\n"
-mknod /dev/ttyUSB0 c 188 0				# Create block device for emmc_recover
-sleep 5
-printf  "Waking QDL device...\n"
-./emmc_recover -r > /dev/null
-sleep 12
-./emmc_recover -q -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/sd"$brickdrive"12 -c 24576		# Flash Signed 1.12 HBoot
+Flash112
 
 printf  "\nSuccessfully loaded HBOOT 1.12.0000!\n\n\n"
 printf  "The final step is restoring your backup /dev/block/mmcblk0p4./n/n"
@@ -272,29 +322,16 @@ printf  "If this process fails to complete you will need to complete the manual 
 printf  "using the post on XDA.  In that case, your bricked phone should be\n"
 printf  "accessible at /dev/sd$brickdrive\n\n"
 
-sleep 5
-
-printf  "Waiting for QDL cooldown...\n"
-sleep 10
-
-printf  "Resetting qcserial module...\n"
-modprobe -r qcserial					# Reset qcserial kernel module and clear old blocks
-sleep 5
-printf  "Creating block device...\n"
-mknod /dev/ttyUSB0 c 188 0				# Create block device for emmc_recover
-sleep 5
-printf  "Waking QDL device...\n"
-./emmc_recover -r > /dev/null
-sleep 12
-./emmc_recover -q -f ./bakp4 -d /dev/sd"$brickdrive"4										# Flash backup p4 file
+FlashP4
 
 printf  "\n\nSuccess!\n\n"
-printf  "Your phone should now at least have a charging light on.  Some phones will\n"
-printf  "immediately boot after restoration.  If yours doesn't, simply unplug the USB\n"
-printf  "cable and hold your power button for a few seconds.\n\n"
+printf  "Your phone should reboot in a few seconds.  If yours doesn't, simply unplug \n"
+printf  "the USB cable and hold your power button for a few seconds.\n\n"
 printf  "Enjoy HBOOT 1.12!  You can now S-OFF with LazyPanda.\n\n"
 
 printf  "Rebooting to live mode...\n\n"
-sleep 15
+
+sleep 10
+WakeQDL
+
 printf  "Done.\n"
-./emmc_recover -r > /dev/null
