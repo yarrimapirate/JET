@@ -16,7 +16,7 @@
 #    GNU General Public License for more details.
 #
 #    You should have received a copy of the GNU General Public License
-#    alongs with this program.  If not, see <http://www.gnu.org/licenses/>.
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 version="0.2.1beta"
@@ -295,10 +295,8 @@ BackupP4() {
 	
 	./adb pull /sdcard/bakp4 ./bakp4 > /dev/null							#  Pull file from internal storage to local machine
 
-	if [ -e ./bakp4 ]; then	
-		continue												#  Did the bakp4 get created?
-	else
-		PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
+	if [ ! -e ./bakp4 ]; then	
+      		PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
 		exit 1
 	fi
 
