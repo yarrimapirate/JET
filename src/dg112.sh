@@ -295,13 +295,11 @@ BackupP4() {
 	
 	./adb pull /sdcard/bakp4 ./bakp4 > /dev/null			#  Pull file from internal storage to local machine
 
-<<<<<<< HEAD
 	if [ ! -e ./bakp4 ]; then								#  Did the bakp4 get created?
 		printf  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
-=======
+
 	if [ ! -e ./bakp4 ]; then	
       		PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
->>>>>>> ac9ac753df275235c139f5d28747ef2b256c5c2a
 		exit 1
 	fi
 
