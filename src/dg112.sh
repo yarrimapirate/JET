@@ -1,6 +1,6 @@
 #!/bin/sh
 
-#  dg112.sh - yarrimapirate@XDA
+#  dg112.sh - yarrimapirate@XDA, SouL Shadow@XDA
 #  
 #  A script to automate the force QDL process for downgrading HBoot to 1.12
 #  on the HTC EVO 4G LTE.
@@ -26,14 +26,22 @@
 version="0.2.1beta"
 logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
 verbose=1               # Interactive, On by default
+<<<<<<< HEAD
 			
+=======
+superCID=1				# Apply SuperCID mod during downgrade, On by default
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 
 #################################
 #  ===  Utility Functions  ===  #
 #################################
 
 PrintScreen() {         # Print to screen, if enabled.
+<<<<<<< HEAD
         if [ $verbose ] ; then
+=======
+        if [ $verbose=1 ] ; then
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 	        printf "$1"
 	fi
 }
@@ -44,7 +52,11 @@ PrintLog() {            # Print to log file, if enabled.
 	        printf "$1" >> $logfile
 	fi
 }
+<<<<<<< HEAD
 	
+=======
+
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 
 PrintBoth() {           # Print to screen and log
 	PrintScreen "$1"
@@ -234,6 +246,12 @@ Flash112() {
 
 BackupP4() {
         PrintLog "In BackupP4()\n"
+<<<<<<< HEAD
+=======
+	if [ $superCID = 0 ]; then
+		PrintBoth "**SuperCID mode is OFF**\n"
+	fi
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 	PrintBoth "Backing up mmcblk0p4 to /sdcard/bak4\n"
 	PrintBoth  "Rebooting to bootloader...\n\n"
 
@@ -300,12 +318,25 @@ BackupP4() {
 	#	}
 	#
 	#rm sdstatus
-	
-	./adb pull /sdcard/bakp4 ./bakp4 > /dev/null							#  Pull file from internal storage to local machine
 
+<<<<<<< HEAD
 	if [ ! -e ./bakp4 ]; then	
       		PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
+=======
+	./adb pull /sdcard/bakp4 ./bakp4  2> /dev/null							#  Pull file from internal storage to local machine
+
+	if [ ! -e ./bakp4 ]; then	
+      	PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 		exit 1
+	fi
+	
+	if [ $superCID = 1 ]; then
+		PrintBoth  "Applying SuperCID mod to backup P4.\n\n"
+		echo 11111111 > supercid.txt
+		cidresult=`dd if=supercid.txt seek=532 bs=1 count=8 of=./bakp4 conv=notrunc 2>&1`
+		PrintLog  "$cidresult"
+		rm supercid.txt
 	fi
 
 	s=0
@@ -363,7 +394,11 @@ FlashBakP4() {
 
 
 BackupOnly() {
+<<<<<<< HEAD
         PrintBoth "**Backup Only Mode**\n\n"
+=======
+    PrintBoth "**Backup Only Mode**\n\n"
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 
 	PrintBoth  "\nPreparing...\n"
 
@@ -372,7 +407,11 @@ BackupOnly() {
 	./adb start-server > /dev/null
 
 	BackupP4
+<<<<<<< HEAD
 	
+=======
+	./adb reboot
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 	PrintBoth "Done\n"
 	exit 0
 }
@@ -420,6 +459,40 @@ Brick() {
 }
 
 
+<<<<<<< HEAD
+=======
+SuperCID() {
+	PrintBoth "**SuperCID Only Mode**\n\n"
+
+	PrintBoth  "\nPreparing...\n"
+
+	sleep 2
+	./adb kill-server > /dev/null
+	./adb start-server > /dev/null
+
+	superCID=1
+	
+	if [ -e ./bakp4 ]; then
+		mv ./bakp4 ./bakbakp4
+	fi
+
+	BackupP4
+	mv ./bakp4 ./cidp4
+
+	if [ -e ./bakbakp4 ]; then
+		mv ./bakbakp4 ./bakp4
+	fi
+	
+	./adb push ./cidp4 /sdcard > /dev/null
+	./adb shell "dd if=/sdcard/cidp4 of=/dev/block/mmcblk0p4" > /dev/null
+	./adb shell "rm /sdcard/cidp4" > /dev/null
+	
+	./adb reboot
+	PrintBoth "Done\n"
+	exit 0
+}
+
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 ##################
 #  ===  UI  ===  #
 ##################
@@ -428,8 +501,12 @@ Interactive() {
 	PrintScreen  "This script will put backup critical partition data and then put your phone\n"
 	PrintScreen  "into Qualcomm download mode (AKA Brick).\n\n"
 	PrintScreen  "Before running this script, you should have TWRP loaded onto your phone.\n"
+<<<<<<< HEAD
 	PrintScreen  "Plug your phone in via USB and ensure both USB debugging and\n"
 	PrintScreen  "fastboot are enabled.\n\n"
+=======
+	PrintScreen  "Plug your phone in via USB and ensure both USB debugging is enabled.\n\n"
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 	read -p "Press Enter to continue..." p
 
 	PrintBoth  "\nPreparing...\n"
@@ -438,6 +515,7 @@ Interactive() {
         sleep 2
 	./adb kill-server > /dev/null
 	./adb start-server > /dev/null
+<<<<<<< HEAD
 
 
 	PrintScreen  "This phase backs up /dev/block/mmcblk0p4 from your phone to this machine.  In\n" 
@@ -490,15 +568,78 @@ Interactive() {
 
 }
 
+=======
+
+
+	PrintScreen  "This phase backs up /dev/block/mmcblk0p4 from your phone to this machine.  In\n" 
+	PrintScreen  "addition, we will fetch your IMEI from the phone and use it to create an\n"
+	PrintScreen  "additional partition 4 replacement to use as a failsafe.  In the \n"
+	PrintScreen  "event something goes wrong, you'll have a way to unbrick manually.\n" 
+	PrintScreen  "Please stand by...\n\n"
+
+	BackupP4
+
+	PrintScreen  "Phase 2\n\n"
+	PrintScreen  "Now that we have backups, we're going to intentionally corrupt the\n" 
+	PrintScreen  "data on /dev/block/mmcblk0p4.  This will cause the phone to enter\n"
+	PrintScreen  "Qualcomm download mode (or brick if you prefer).\n\n"
+	PrintScreen  "The process can't be stopped after this.  Continue?\n"
+	GetYN
+
+	PrintScreen  "\n\nDo NOT interrupt this process or reboot your computer.\n\n"
+	PrintBoth  "Corrupting /dev/block/mmcblk0p4...\n\n"
+
+	KillP4
+
+	PrintBoth  "Success.\n\n\n"
+	PrintScreen  "Your phone should now appear to be off, with no charging light on.\n\n"
+	read -p "Press Enter to continue..." p
+
+	CheckBrick
+
+	Flash112
+
+	PrintBoth  "\nSuccessfully loaded HBOOT 1.12.0000!\n\n\n"
+	PrintScreen  "The final step is restoring your backup /dev/block/mmcblk0p4./n/n"
+	PrintScreen  "Once again, if this process hangs at \"Waiting for /dev/sd"$brickdrive"4...\"\n"
+	PrintScreen  "Press and hold the power button on your phone for no less than 30 seconds and\n"
+	PrintScreen  "then release it.  The process should wake back up a few seconds afterwards.\n\n"
+	PrintScreen  "If this process fails to complete you will need to complete the manual steps\n"
+	PrintScreen  "using the post on XDA.  In that case, your bricked phone should be\n"
+	PrintScreen  "accessible at /dev/sd$brickdrive\n\n"
+
+	FlashBakP4
+
+	PrintScreen  "HBOOT 1.12 downgrade complete.\n\n"
+	PrintBoth  "Rebooting to live mode...\n\n"
+
+	sleep 10
+	WakeQDL
+
+	PrintBoth  "Done.\n"
+	exit 0
+
+}
+
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 
 DisplayHelp() {
 	PrintScreen "Invalid command line argument specified.\n\n"
 	PrintScreen "Usage:  dg112.sh [options]\n\n"
 	PrintScreen "   -b, --backup          Backup P4 and generate failsafe P4 only.  (No QDL force)\n"
+<<<<<<< HEAD
 	PrintScreen "   -h, --help            Print this help and exit\n"
 	PrintScreen "   -k, --kill            Kill P4 to force QDL mode\n"
 	PrintScreen "   -q, --quiet           Supress all display output\n"
 	PrintScreen "   -r, --recover         Load HBOOT 1.12 and load existing backup P4\n"
+=======
+	PrintScreen "   -c, --cidpreserve     Do not apply SuperCID mod to backup P4 file\n"
+	PrintScreen "   -h, --help            Print this help and exit\n"
+	PrintScreen "   -k, --kill            Kill P4 to force QDL mode (Be careful with this.)\n"
+	PrintScreen "   -q, --quiet           Suppress all display output\n"
+	PrintScreen "   -r, --recover         Load HBOOT 1.12 and load existing backup P4\n"
+	PrintScreen "   -s, --supercid        Apply SuperCID mod to UNBRICKED phone\n"
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 	PrintScreen "   -u, --unbrick         Reload backup P4 only (force exit QDL)\n"
 	PrintScreen "   -v  --verbose         Display all output\n\n"
 	exit 1
@@ -518,10 +659,19 @@ PrintScreen "HTC EVO 4G LTE HBOOT Downgrade Tool v$version\n\n"
 mode=Interactive
 for opt ; do
         case $opt in
+<<<<<<< HEAD
                 -b | --backup) mode=BackupOnly;;
 		-k | --kill) mode=Brick;;
 		-q | --quiet) verbose=0;;
 		-r | --recover) mode=Recover;;
+=======
+        -b | --backup) mode=BackupOnly;;
+		-c | --cidpreserve) superCID=0;;
+		-k | --kill) mode=Brick;;
+		-q | --quiet) verbose=0;;
+		-r | --recover) mode=Recover;;
+		-s | --supercid) mode=SuperCID;;
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
 		-u | --unbrick) mode=Unbrick;;
 		-v | --verbose) verbose=1;;
 		*) DisplayHelp;;                  # handles -h, --help and any undefined args
@@ -532,4 +682,7 @@ InitDG112
 
 $mode
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> 2344e5b4564c8350f006b364d8a2ba32ed433838
