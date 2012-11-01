@@ -1,8 +1,8 @@
 #!/bin/sh
 
-#  dg112.sh - yarrimapirate@XDA
+#  dg112.sh - yarrimapirate@XDA, SouL Shadow@XDA
 #  
-#  A script to aqutomate the force QDL process for downgrading HBoot to 1.12
+#  A script to automate the force QDL process for downgrading HBoot to 1.12
 #  on the HTC EVO 4G LTE.
 
 #    This program is free software: you can redistribute it and/or modify
@@ -19,12 +19,18 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
+#########################
+#  ===  Variables  ===  #
+#########################
+
 version="0.2.1beta"
-logfile="logfile.txt"   # Unset to disable logging
-verbose=1               # On by default
+logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
+verbose=1               # Interactive, On by default
 
 
-#  ===  Define Functions
+#################################
+#  ===  Utility Functions  ===  #
+#################################
 
 PrintScreen() {         # Print to screen, if enabled.
         if [ $verbose ] ; then
@@ -38,7 +44,7 @@ PrintLog() {            # Print to log file, if enabled.
 	        printf "$1" >> $logfile
 	fi
 }
-	
+
 
 PrintBoth() {           # Print to screen and log
 	PrintScreen "$1"
@@ -59,114 +65,16 @@ GetYN() {
 }
 
 
-WakeQDL() {			#Spam pbl_reset until the phone responds
-        PrintLog "In WakeODL()\n"
-        count=1
-	wakeresult=`./emmc_recover -r | tail -1`
-        while [ "$wakeresult" = "Cannot reset device" ]
-	do 
-		wakeresult=`./emmc_recover -r | tail -1`
-		count=$(($count+1))
-	done 
-	PrintBoth "Took $count tries...\n"
-	PrintLog "Exiting WakeODL()\n"
-}
-
-
-PrepQDL() {
-        PrintLog "In PrepODL()\n"
-        PrintBoth  "Resetting qcserial module...\n"
-        modprobe -r qcserial					# Reset qcserial kernel module and clear old blocks
-        sleep 1
-        PrintBoth  "Creating block device...\n"
-        mknod /dev/ttyUSB0 c 188 0				# Create block device for emmc_recover
-        PrintBoth  "Waking QDL device...\n"
-        WakeQDL
-        sleep 2
-        PrintLog "Exiting PrepODL()\n"
-}
-
-
-Flash112() {
-        PrintLog "In Flash112()\n"
-	flashresult=""
-  	PrintScreen  "\nFrom here forward, DO NOT UNPLUG THE PHONE FROM THE USB CABLE!\n\n"
-	PrintBoth  "Now flashing the 1.12 bootloader.\n\n"
-	PrintScreen  "If this process hangs at \"Waiting for /dev/sd"$brickdrive"12...\"  Press and\n"
-	PrintScreen  "hold the power button on your phone for no less than 30 seconds and\n"
-	PrintScreen  "then release it.  The process should wake back up a few seconds afterwards.\n\n"
-	PrintScreen  "Note that this process can take as long as 10 minutes to complete and you\n"
-	PrintScreen  "will see a lot of repetitive output from the recovery tool.\n\n"
-	PrintScreen  "If this process fails to complete, your bricked phone should be\n"
-	PrintScreen  "accessible at /dev/sd$brickdrive\n\n"
-	
-
-	while [ "$flashresult" != "Detected mode-switch" ]
-	do
-		PrepQDL
-		./emmc_recover -q -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/sd"$brickdrive"12 -c 24576 | tee ./result	# Flash Signed 1.12 HBoot
-		flashresult=`cat ./result| tail -1`
-		rm ./result
-		if [ "$flashresult" != "Detected mode-switch" ]; then
-			PrintBoth "Error flashing HBOOT 1.12!\n\n"
-			sleep 2
-			PrintBoth "Retrying...\n\n"
-		fi
-	done
-	PrintLog "Exiting Flash112()\n"
-}
-
-
-FlashBakP4() {
-        PrintLog "In FlashBakP4()\n"
-	flashresult=""
-	while [ "$flashresult" != "Okay" ]
-	do
-		PrepQDL
-		PrintBoth "Restoring /dev/block/mmcblk0p4...\n\n"
-		flashresult=`./emmc_recover -q -f ./bakp4 -d /dev/sd"$brickdrive"4 | tail -1`	# Flash backup p4 file
-		if [ "$flashresult" != "Okay" ]; then
-			PrintBoth "Error restoring P4 partition!\n\n"
-			sleep 2
-			PrintBoth "Retrying...\n\n"
-		fi
-	done
-	PrintBoth  "\n\nSuccess!\n\n"
-	PrintScreen  "Your phone should reboot in a few seconds.  If yours doesn't, simply unplug \n"
-	PrintScreen  "the USB cable and hold your power button for a few seconds.\n\n"
-        PrintLog "Exiting FlashBakP4()\n"
-}
-
-
-CheckBrick() {				# QDL device detection
-        PrintLog "In CheckBrick()\n"
-	lastdrive=$(ls -r /dev/sd? | sed 's\/dev/sd\\' | dd bs=1 count=1 2> /dev/null)	# Get all current /dev/sd* and filter to single letter of last drive
-	ldascii=$(printf '%d\n' "'$lastdrive")											# Convert letter to ASCII value
-	bdascii=$((ldascii+1))															# Increment ASCII Value, store in new variable
-	brickdrive=$(printf \\$(printf '%03o' $bdascii))								# Convert brick drive ASCII value to character, store for later use
-
-#   Needs Work - disabled for now
-
-#	printf  "\nDetecting bricked device...  "
-#
-#	sleep 3
-#	qcserialstate=`dmesg | grep 'qcserial' | tail -1 | awk '{print $NF}'`
-#	if [ "$qcserialstate" != "detected" ] -a [ "$qcserialstate" != "qcserial" ]; then
-#		printf  "\n\nCannot detect bricked phone.  Please check your USB connection.\n\n"
-#		read -p "Press Enter to retry detection..." p
-#		modprobe -r qcserial
-#		CheckBrick
-#	fi
-#	printf  "Found it!\n\n"
-        PrintLog "Exiting CheckBrick()\n"
-}
+###############################
+#  ===  Setup Functions  ===  #
+###############################
 
 
 InitDG112() {
         #  Logging
 	if [ ! -e $logfile ]; then
 	        if ! touch $logfile ; then 
-		        PrintScreen "FATAL:  Unable to create file \'$logfile\'\n\n"
+		        printf "FATAL:  Unable to create file \'$logfile\'\n\n"
 			exit 1;
 		fi
 	fi
@@ -225,8 +133,108 @@ InitDG112() {
 }
 
 
+#############################
+#  ===  QDL Functions  ===  #
+#############################
+
+
+WakeQDL() {			#Spam pbl_reset until the phone responds
+        PrintLog "In WakeQDL()\n"
+        count=1
+	wakeresult=`./emmc_recover -r | tail -1`
+        while [ "$wakeresult" = "Cannot reset device" ]
+	do 
+		wakeresult=`./emmc_recover -r | tail -1`
+		count=$(($count+1))
+	done 
+	PrintBoth "Took $count tries...\n"
+	PrintLog "Exiting WakeQDL()\n"
+}
+
+
+PrepQDL() {
+        PrintLog "In PrepQDL()\n"
+        PrintBoth  "Resetting qcserial module...\n"
+        modprobe -r qcserial					# Reset qcserial kernel module and clear old blocks
+        sleep 1
+        PrintBoth  "Creating block device...\n"
+        mknod /dev/ttyUSB0 c 188 0				# Create block device for emmc_recover
+        PrintBoth  "Waking QDL device...\n"
+        WakeQDL
+        sleep 2
+        PrintLog "Exiting PrepQDL()\n"
+}
+
+
+CheckBrick() {				# QDL device detection
+        PrintLog "In CheckBrick()\n"
+	lastdrive=$(ls -r /dev/sd? | sed 's\/dev/sd\\' | dd bs=1 count=1 2> /dev/null)	# Get all current /dev/sd* and filter to single letter of last drive
+	ldascii=$(printf '%d\n' "'$lastdrive")											# Convert letter to ASCII value
+	bdascii=$((ldascii+1))															# Increment ASCII Value, store in new variable
+	brickdrive=$(printf \\$(printf '%03o' $bdascii))								# Convert brick drive ASCII value to character, store for later use
+	PrintLog "Device connected at: $brickdrive\n"
+#   Needs Work - disabled for now
+
+#	printf  "\nDetecting bricked device...  "
+#
+#	sleep 3
+#	qcserialstate=`dmesg | grep 'qcserial' | tail -1 | awk '{print $NF}'`
+#	if [ "$qcserialstate" != "detected" ] -a [ "$qcserialstate" != "qcserial" ]; then
+#		printf  "\n\nCannot detect bricked phone.  Please check your USB connection.\n\n"
+#		read -p "Press Enter to retry detection..." p
+#		modprobe -r qcserial
+#		CheckBrick
+#	fi
+#	printf  "Found it!\n\n"
+        PrintLog "Exiting CheckBrick()\n"
+}
+
+
+####################################
+#  ===  HBoot Flash Function  ===  #
+####################################
+
+
+Flash112() {
+        PrintLog "In Flash112()\n"
+	flashresult=""
+
+	PrintBoth  "Now flashing the 1.12 bootloader.\n\n"
+	if [ $verbose ]; then
+		PrintScreen  "\nFrom here forward, DO NOT UNPLUG THE PHONE FROM THE USB CABLE!\n\n"
+		PrintScreen  "If this process hangs at \"Waiting for /dev/sd"$brickdrive"12...\"  Press and\n"
+		PrintScreen  "hold the power button on your phone for no less than 30 seconds and\n"
+		PrintScreen  "then release it.  The process should wake back up a few seconds afterwards.\n\n"
+		PrintScreen  "Note that this process can take as long as 10 minutes to complete and you\n"
+		PrintScreen  "will see a lot of repetitive output from the recovery tool.\n\n"
+		PrintScreen  "If this process fails to complete, your bricked phone should be\n"
+		PrintScreen  "accessible at /dev/sd$brickdrive\n\n"
+	fi
+
+	while [ "$flashresult" != "Detected mode-switch" ]
+	do
+		PrepQDL
+		./emmc_recover -q -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/sd"$brickdrive"12 -c 24576 | tee ./result	# Flash Signed 1.12 HBoot
+		flashresult=`cat ./result| tail -1`
+		rm ./result
+		if [ "$flashresult" != "Detected mode-switch" ]; then
+			PrintBoth "Error flashing HBOOT 1.12!\n\n"
+			sleep 2
+			PrintBoth "Retrying...\n\n"
+		fi
+	done
+	PrintLog "Exiting Flash112()\n"
+}
+
+
+###################################
+#  ===  mmcblk0p4 Functions  ===  #
+###################################
+
+
 BackupP4() {
         PrintLog "In BackupP4()\n"
+	PrintBoth "Backing up mmcblk0p4 to /sdcard/bak4\n"
 	PrintBoth  "Rebooting to bootloader...\n\n"
 
 	./adb reboot bootloader
@@ -292,11 +300,8 @@ BackupP4() {
 	#	}
 	#
 	#rm sdstatus
-	
-	./adb pull /sdcard/bakp4 ./bakp4 > /dev/null			#  Pull file from internal storage to local machine
 
-	if [ ! -e ./bakp4 ]; then								#  Did the bakp4 get created?
-		printf  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
+	./adb pull /sdcard/bakp4 ./bakp4 > /dev/null							#  Pull file from internal storage to local machine
 
 	if [ ! -e ./bakp4 ]; then	
       		PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
@@ -336,15 +341,88 @@ KillP4() {
 }
 
 
-InvalidArg() {
-	PrintScreen "Invalid command line argument specified.\n\n"
-	PrintScreen "Usage:  dg112.sh [options]\n\n"
-	PrintScreen "   -b or --backup   :  Backup P4 and generate failsafe P4 only.  (No QDL force)\n"
-	PrintScreen "   -r or --recover  :  Load HBOOT 1.12 and load existing backup P4\n"
-	PrintScreen "   -u or --unbrick  :  Reload backup P4 only (force exit QDL)\n\n"
-	exit 1
+FlashBakP4() {
+        PrintLog "In FlashBakP4()\n"
+	flashresult=""
+	while [ "$flashresult" != "Okay" ]
+	do
+		PrepQDL
+		PrintBoth "Restoring /dev/block/mmcblk0p4...\n\n"
+		flashresult=`./emmc_recover -q -f ./bakp4 -d /dev/sd"$brickdrive"4 | tail -1`	# Flash backup p4 file
+		if [ "$flashresult" != "Okay" ]; then
+			PrintBoth "Error restoring P4 partition!\n\n"
+			sleep 2
+			PrintBoth "Retrying...\n\n"
+		fi
+	done
+	PrintBoth  "\n\nSuccess!\n\n"
+	PrintScreen  "Your phone should reboot in a few seconds.  If yours doesn't, simply unplug \n"
+	PrintScreen  "the USB cable and hold your power button for a few seconds.\n\n"
+        PrintLog "Exiting FlashBakP4()\n"
 }
 
+
+BackupOnly() {
+        PrintBoth "**Backup Only Mode**\n\n"
+
+	PrintBoth  "\nPreparing...\n"
+
+	sleep 2
+	./adb kill-server > /dev/null
+	./adb start-server > /dev/null
+
+	BackupP4
+
+	PrintBoth "Done\n"
+	exit 0
+}
+
+
+Recover() {
+	PrintBoth "**Recovery Mode**\n\n"
+	CheckBrick
+	if [ -e ./bakp4 ]; then
+		Flash112
+		FlashBakP4
+	else
+		PrintBoth "FATAL:  Backup P4 file not found.\n"
+		exit 1
+	fi	
+	exit 0
+}
+
+
+Unbrick() {
+	PrintBoth "**Unbrick Mode**\n\n"
+	CheckBrick
+	if [ -e ./bakp4 ]; then
+		FlashBakP4
+	else
+		PrintBoth "FATAL:  Backup P4 file not found.\n"
+		exit 1
+	fi	
+
+	exit 0
+}
+
+
+Brick() {
+        PrintBoth "**Brick Mode**\n\n"
+        PrintScreen "This will force QDL mode.  You need a backup P4 file!!  Are you SURE?\n"
+	GetYN
+	if [ ! -e ./bakp4 ]; then	
+		PrintBoth "*** WARNING: NO backup p4 file \($PWD/bakp4\) found! ***\n"
+		PrintScreen "Creating backup now..."
+		BackupP4
+	fi
+	KillP4
+	exit 0
+}
+
+
+##################
+#  ===  UI  ===  #
+##################
 
 Interactive() {
 	PrintScreen  "This script will put backup critical partition data and then put your phone\n"
@@ -413,76 +491,44 @@ Interactive() {
 }
 
 
-BackupOnly() {
-	PrintBoth "**Backup Only Mode**\n\n"
-
-	PrintBoth  "\nPreparing...\n"
-
-	sleep 2
-	./adb kill-server > /dev/null
-	./adb start-server > /dev/null
-
-	BackupP4
-	
-	PrintBoth "Done\n"
-	exit 0
+DisplayHelp() {
+	PrintScreen "Invalid command line argument specified.\n\n"
+	PrintScreen "Usage:  dg112.sh [options]\n\n"
+	PrintScreen "   -b, --backup          Backup P4 and generate failsafe P4 only.  (No QDL force)\n"
+	PrintScreen "   -h, --help            Print this help and exit\n"
+	PrintScreen "   -k, --kill            Kill P4 to force QDL mode\n"
+	PrintScreen "   -q, --quiet           Supress all display output\n"
+	PrintScreen "   -r, --recover         Load HBOOT 1.12 and load existing backup P4\n"
+	PrintScreen "   -u, --unbrick         Reload backup P4 only (force exit QDL)\n"
+	PrintScreen "   -v  --verbose         Display all output\n\n"
+	exit 1
 }
 
+#############################
+#  ===  End Functions  ===  #
+#############################
 
-Recover() {
-	PrintBoth"**Recovery Mode**\n\n"
-	CheckBrick
-	if [ -e ./bakp4 ]; then
-		Flash112
-		FlashBakP4
-	else
-		PrintBoth "FATAL:  Backup P4 file not found.\n"
-		exit 1
-	fi	
-	exit 0
-}
-
-
-Unbrick() {
-	PrintBoth "**Unbrick Mode**\n\n"
-	CheckBrick
-	if [ -e ./bakp4 ]; then
-		FlashBakP4
-	else
-		PrintBoth "FATAL:  Backup P4 file not found.\n"
-		exit 1
-	fi	
-
-	exit 0
-}
-
-
-Brick() {
-	PrintBoth "This will force QDL mode.  You need a backup P4 file!!  Are you SURE?\n"
-	GetYN
-	KillP4
-	exit 0
-}
-
-
-
-#  ===  End Functions
-
-
-#  ===  Main
+####################
+#  ===  Main  ===  #
+####################
 
 clear
 PrintScreen "HTC EVO 4G LTE HBOOT Downgrade Tool v$version\n\n"
+
+mode=Interactive
+for opt ; do
+        case $opt in
+                -b | --backup) mode=BackupOnly;;
+		-k | --kill) mode=Brick;;
+		-q | --quiet) verbose=0;;
+		-r | --recover) mode=Recover;;
+		-u | --unbrick) mode=Unbrick;;
+		-v | --verbose) verbose=1;;
+		*) DisplayHelp;;                  # handles -h, --help and any undefined args
+	esac
+done 
+
 InitDG112
 
-if [ $1 != "" ]; then
-	case $1 in
-		-b | --backup) BackupOnly;;
-		-k | --kill) Brick;;
-		-r | --recover) Recover;;
-		-u | --unbrick) Unbrick;;
-		*) InvalidArg;;
-	esac
-else
-	Interactive
-fi
+$mode
+
