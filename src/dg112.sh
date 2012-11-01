@@ -26,14 +26,14 @@
 version="0.2.1beta"
 logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
 verbose=1               # Interactive, On by default
-
+superCID=1				# Apply SuperCID mod during downgrade, On by default
 
 #################################
 #  ===  Utility Functions  ===  #
 #################################
 
 PrintScreen() {         # Print to screen, if enabled.
-        if [ $verbose ] ; then
+        if [ $verbose=1 ] ; then
 	        printf "$1"
 	fi
 }
@@ -234,6 +234,9 @@ Flash112() {
 
 BackupP4() {
         PrintLog "In BackupP4()\n"
+	if [ $superCID = 0 ]; then
+		PrintBoth "**SuperCID mode is OFF**\n"
+	fi
 	PrintBoth "Backing up mmcblk0p4 to /sdcard/bak4\n"
 	PrintBoth  "Rebooting to bootloader...\n\n"
 
@@ -301,11 +304,19 @@ BackupP4() {
 	#
 	#rm sdstatus
 
-	./adb pull /sdcard/bakp4 ./bakp4 > /dev/null							#  Pull file from internal storage to local machine
+	./adb pull /sdcard/bakp4 ./bakp4  2> /dev/null							#  Pull file from internal storage to local machine
 
 	if [ ! -e ./bakp4 ]; then	
-      		PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
+      	PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
 		exit 1
+	fi
+	
+	if [ $superCID = 1 ]; then
+		PrintBoth  "Applying SuperCID mod to backup P4.\n\n"
+		echo 11111111 > supercid.txt
+		cidresult=`dd if=supercid.txt seek=532 bs=1 count=8 of=./bakp4 conv=notrunc 2>&1`
+		PrintLog  "$cidresult"
+		rm supercid.txt
 	fi
 
 	s=0
@@ -363,7 +374,7 @@ FlashBakP4() {
 
 
 BackupOnly() {
-        PrintBoth "**Backup Only Mode**\n\n"
+    PrintBoth "**Backup Only Mode**\n\n"
 
 	PrintBoth  "\nPreparing...\n"
 
@@ -372,7 +383,7 @@ BackupOnly() {
 	./adb start-server > /dev/null
 
 	BackupP4
-
+	./adb reboot
 	PrintBoth "Done\n"
 	exit 0
 }
@@ -420,6 +431,37 @@ Brick() {
 }
 
 
+SuperCID() {
+	PrintBoth "**SuperCID Only Mode**\n\n"
+
+	PrintBoth  "\nPreparing...\n"
+
+	sleep 2
+	./adb kill-server > /dev/null
+	./adb start-server > /dev/null
+
+	superCID=1
+	
+	if [ -e ./bakp4 ]; then
+		mv ./bakp4 ./bakbakp4
+	fi
+
+	BackupP4
+	mv ./bakp4 ./cidp4
+
+	if [ -e ./bakbakp4 ]; then
+		mv ./bakbakp4 ./bakp4
+	fi
+	
+	./adb push ./cidp4 /sdcard > /dev/null
+	./adb shell "dd if=/sdcard/cidp4 of=/dev/block/mmcblk0p4" > /dev/null
+	./adb shell "rm /sdcard/cidp4" > /dev/null
+	
+	./adb reboot
+	PrintBoth "Done\n"
+	exit 0
+}
+
 ##################
 #  ===  UI  ===  #
 ##################
@@ -428,8 +470,7 @@ Interactive() {
 	PrintScreen  "This script will put backup critical partition data and then put your phone\n"
 	PrintScreen  "into Qualcomm download mode (AKA Brick).\n\n"
 	PrintScreen  "Before running this script, you should have TWRP loaded onto your phone.\n"
-	PrintScreen  "Plug your phone in via USB and ensure both USB debugging and\n"
-	PrintScreen  "fastboot are enabled.\n\n"
+	PrintScreen  "Plug your phone in via USB and ensure both USB debugging is enabled.\n\n"
 	read -p "Press Enter to continue..." p
 
 	PrintBoth  "\nPreparing...\n"
@@ -479,7 +520,7 @@ Interactive() {
 
 	FlashBakP4
 
-	PrintScreen  "Enjoy HBOOT 1.12!  You can now S-OFF with LazyPanda.\n\n"
+	PrintScreen  "HBOOT 1.12 downgrade complete.\n\n"
 	PrintBoth  "Rebooting to live mode...\n\n"
 
 	sleep 10
@@ -495,10 +536,12 @@ DisplayHelp() {
 	PrintScreen "Invalid command line argument specified.\n\n"
 	PrintScreen "Usage:  dg112.sh [options]\n\n"
 	PrintScreen "   -b, --backup          Backup P4 and generate failsafe P4 only.  (No QDL force)\n"
+	PrintScreen "   -c, --cidpreserve     Do not apply SuperCID mod to backup P4 file\n"
 	PrintScreen "   -h, --help            Print this help and exit\n"
-	PrintScreen "   -k, --kill            Kill P4 to force QDL mode\n"
-	PrintScreen "   -q, --quiet           Supress all display output\n"
+	PrintScreen "   -k, --kill            Kill P4 to force QDL mode (Be careful with this.)\n"
+	PrintScreen "   -q, --quiet           Suppress all display output\n"
 	PrintScreen "   -r, --recover         Load HBOOT 1.12 and load existing backup P4\n"
+	PrintScreen "   -s, --supercid        Apply SuperCID mod to UNBRICKED phone\n"
 	PrintScreen "   -u, --unbrick         Reload backup P4 only (force exit QDL)\n"
 	PrintScreen "   -v  --verbose         Display all output\n\n"
 	exit 1
@@ -518,10 +561,12 @@ PrintScreen "HTC EVO 4G LTE HBOOT Downgrade Tool v$version\n\n"
 mode=Interactive
 for opt ; do
         case $opt in
-                -b | --backup) mode=BackupOnly;;
+        -b | --backup) mode=BackupOnly;;
+		-c | --cidpreserve) superCID=0;;
 		-k | --kill) mode=Brick;;
 		-q | --quiet) verbose=0;;
 		-r | --recover) mode=Recover;;
+		-s | --supercid) mode=SuperCID;;
 		-u | --unbrick) mode=Unbrick;;
 		-v | --verbose) verbose=1;;
 		*) DisplayHelp;;                  # handles -h, --help and any undefined args
