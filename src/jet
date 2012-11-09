@@ -99,8 +99,8 @@ Init() {
 		exit 1
 	fi
 
-	if [ ! -e "./hboot_1.12.0000_signedbyaa.nb0" ]; then
-		PrintBoth  "FATAL:  File hboot_1.12.0000_signedbyaa.nb0 missing.\n\n"
+	if [ ! -e "./hboot.nb0" ]; then
+		PrintBoth  "FATAL:  File hboot.nb0 missing.\n\n"
 		exit 1
 	fi
 
@@ -223,7 +223,7 @@ FlashP12() {
 	while [ "$flashresult" != "Detected mode-switch" ]
 	do
 		PrepQDL
-		./emmc_recover -q -f hboot_1.12.0000_signedbyaa.nb0 -d /dev/"$brickdrive"12 -c 24576 | tee ./result	# Flash Signed 1.12 HBoot
+		./emmc_recover -q -f hboot.nb0 -d /dev/"$brickdrive"12 -c 24576 | tee ./result	# Flash Signed HBoot
 		flashresult=`cat ./result| tail -1`
 		rm ./result
 		if [ "$flashresult" != "Detected mode-switch" ]; then
@@ -519,7 +519,7 @@ Interactive() {
 
 	FlashP12
 
-	PrintBoth  "\nSuccessfully loaded HBOOT 1.12.0000!\n\n\n"
+	PrintBoth  "\nSuccessfully loaded HBOOT!\n\n\n"
 	PrintScreen  "The final step is restoring your backup /dev/block/mmcblk0p4./n/n"
 	PrintScreen  "Once again, if this process hangs at \"Waiting for /dev/"$brickdrive"4...\"\n"
 	PrintScreen  "Press and hold the power button on your phone for no less than 30 seconds and\n"
@@ -551,7 +551,7 @@ DisplayHelp() {
 	PrintScreen "   -i, --interactive     Interactive HBOOT Downgrade (Default)"
 	PrintScreen "   -k, --kill            Kill P4 to force QDL mode (Be careful with this.)\n"
 	PrintScreen "   -q, --quiet           Suppress all display output\n"
-	PrintScreen "   -r, --recover         Downgrade HBoot and load existing backup P4\n"
+	PrintScreen "   -r, --recover         Downgrade HBOOT and load existing backup P4\n"
 	PrintScreen "   -s, --supercid        Apply SuperCID mod to UNBRICKED phone\n"
 	PrintScreen "   -u, --unbrick         Reload backup P4 only (force exit QDL)\n"
 	PrintScreen "   -v  --verbose         Display all output\n\n"
