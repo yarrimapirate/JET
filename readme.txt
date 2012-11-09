@@ -1,6 +1,5 @@
-evo4glte_hboot
+JET
 ==============
+Jewel/Evita Toolkit
 
-Script for downgrading HTC EVO 4G LTE from HBoot v1.15 or 1.19 to 1.12.
-
-WIP
+Utilities for the HTC Evo 4G LTE and the A&T&T/Rogers HTC One X. 
