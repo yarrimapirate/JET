@@ -180,8 +180,7 @@ CheckBrick() {				# QDL device detection
 	do
 		
 		dwatch=`dmesg | tail -5 | grep "<" | awk '{print $2}' | sed s/":"//`
-		printf "$dwatch"
-		
+				
 		if [ ${#dwatch} = 3 ]; then
 			case $dwatch in
 				sd*) break ;;
@@ -189,9 +188,9 @@ CheckBrick() {				# QDL device detection
 		fi
 		timeout=$(($timeout+1))
 		if [ $timeout = 1000 ]; then
-			Printboth "Timeout.  Retrying..."
+			PrintBoth "Timeout.  Retrying..."
 			WakeQDL
-			tries=$(($tries+1+))
+			tries=$(($tries+1))
 		fi
 	done
 
