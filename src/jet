@@ -23,10 +23,14 @@
 #  ===  Variables  ===  #
 #########################
 
-version="0.3beta"
+version="0.3.1beta_c1"
 logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
+fbl="./fastboot" 		# Fastboot Location
+adbl="./adb"			# ADB Location
 verbose=1               # Interactive, On by default
+checkEnv=1				# Check that files exist, permissions set, etc.
 superCID=1				# Apply SuperCID mod during downgrade, On by default
+sdcardBAK=0				# Copy P4 to SD Card. 0 = OFF. 1 = WARN IF FAIL. 2. FORCE.
 
 #################################
 #  ===  Utility Functions  ===  #
@@ -78,57 +82,59 @@ Init() {
 			exit 1;
 		fi
 	fi
-	PrintLog "HTC EVO 4G LTE HBOOT Downgrade Tool v$version\n"
+	PrintLog "\nJET - Jewel/Evita Toolkit v$version\n"
 	PrintLog "$(date)\n"
-	PrintLog "$(uname -a)\n"
+	PrintLog "$(uname -a)\n\n"
 
-	#  Check for Root
-	if [ "$(whoami)" != 'root' ]; then
-			PrintBoth "$0 requires root.  (sudo $0)\n"
-			exit 1;
-	fi
+	if [ $checkEnv = 1 ]; then
+		#  Check for Root
+		if [ "$(whoami)" != 'root' ]; then
+				PrintBoth "$0 requires root.  (sudo $0)\n"
+				exit 1;
+		fi
 
-	#  Check for required files
-	if [ ! -e "./killp4" ]; then
-		PrintBoth  "FATAL:  File killp4 missing.\n\n"
-		exit 1
-	fi
+		#  Check for required files
+		if [ ! -e "./killp4" ]; then
+			PrintBoth  "FATAL:  File killp4 missing.\n\n"
+			exit 1
+		fi
 
-	if [ ! -e "./blankp4" ]; then
-		PrintBoth  "FATAL:  File blankp4 missing.\n\n"
-		exit 1
-	fi
+		if [ ! -e "./blankp4" ]; then
+			PrintBoth  "FATAL:  File blankp4 missing.\n\n"
+			exit 1
+		fi
 
-	if [ ! -e "./hboot.nb0" ]; then
-		PrintBoth  "FATAL:  File hboot.nb0 missing.\n\n"
-		exit 1
-	fi
+		if [ ! -e "./hboot.nb0" ]; then
+			PrintBoth  "FATAL:  File hboot.nb0 missing.\n\n"
+			exit 1
+		fi
 
-	if [ ! -e "./emmc_recover" ]; then
-		PrintBoth  "FATAL:  File \'emmc_recover\' missing.\n\n"
-		exit 1
-	fi
+		if [ ! -e "./emmc_recover" ]; then
+			PrintBoth  "FATAL:  File \'emmc_recover\' missing.\n\n"
+			exit 1
+		fi
 
-	if [ ! -e "./adb" ]; then
-		PrintBoth  "FATAL:  File \'adb\' missing.\n\n"
-		exit 1
-	fi
+		if [ ! -e "./adb" ]; then
+			PrintBoth  "FATAL:  File \'adb\' missing.\n\n"
+			exit 1
+		fi
 
-	if [ ! -e "./fastboot" ]; then
-		PrintBoth  "FATAL:  File \'fastboot\' missing.\n\n"
-		exit 1
-	fi
+		if [ ! -e "./fastboot" ]; then
+			PrintBoth  "FATAL:  File \'fastboot\' missing.\n\n"
+			exit 1
+		fi
 
-        if [ ! -x "./adb" ]; then
-	        chmod +x ./adb
-	fi
-	
-	if [ ! -x "./fastboot" ]; then
-        	chmod +x ./fastboot 
-	fi
-	
-	if [ ! -x "./emmc_recover" ]; then
-        	chmod +x ./emmc_recover
+			if [ ! -x "./adb" ]; then
+				chmod +x ./adb
+		fi
+		
+		if [ ! -x "./fastboot" ]; then
+				chmod +x ./fastboot 
+		fi
+		
+		if [ ! -x "./emmc_recover" ]; then
+				chmod +x ./emmc_recover
+		fi
 	fi
 }
 
@@ -172,11 +178,13 @@ CheckBrick() {				# QDL device detection
 
 	timeout=0
 	tries=0
+	
+	PrintBoth "Waking Device...\n\n"
+	WakeQDL
+		
 	while [ tries != 3 ]
 	do
-		PrintBoth "Waking Device...\n\n"
-		WakeQDL
-		
+
 		dwatch=`dmesg | tail -5 | grep "<" | awk '{print $2}' | sed s/":"//`
 		
 		if [ ${#dwatch} = 3 ]; then
@@ -186,8 +194,9 @@ CheckBrick() {				# QDL device detection
 		fi
 		timeout=$(($timeout+1))
 		if [ $timeout = 1000 ]; then
-			Printboth "Timeout.  Retrying..."
-			tries=$(($tries+1+))
+			PrintBoth "Timeout.  Retrying..."
+			WakeQDL
+			tries=$(($tries+1))
 		fi
 	done
 
@@ -249,12 +258,12 @@ BackupP4() {
 	PrintBoth "Backing up mmcblk0p4 to /sdcard/bak4\n"
 	PrintBoth  "Rebooting to bootloader...\n\n"
 
-	./adb reboot bootloader
+	$adbl reboot bootloader
 
 	PrintBoth  "Getting IMEI value...\n\n"
 
 	sleep 2
-	./fastboot getvar imei 2>&1 | grep "imei:" | sed s/"imei: "// > imei.txt	# Get IMEI from phone and store
+	$fbl getvar imei 2>&1 | grep "imei:" | sed s/"imei: "// > imei.txt	# Get IMEI from phone and store
 
 	PrintBoth  "Building failsafe P4 file...\n\n"
 
@@ -272,12 +281,12 @@ BackupP4() {
 
 	PrintBoth  "Success.  Rebooting phone.\n\n"
 
-	./fastboot reboot 2> /dev/null
-	./adb wait-for-device
+	$fbl reboot 2> /dev/null
+	$adbl wait-for-device
 
 	PrintBoth  "Rebooting to recovery...\n\n"
 
-	./adb reboot recovery
+	$adbl reboot recovery
 
 	PrintBoth  "Waiting 45s for recovery...\n\n"
 
@@ -286,39 +295,30 @@ BackupP4() {
 
 	PrintBoth  "Pulling /dev/block/mmcblk0p4 backup from phone...\n\n"
 
-	./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4 > /dev/null		#  Copy P4 data to internal storage
+	$adbl shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4 > /dev/null		#  Copy P4 data to internal storage
 
-	#  Redundant since we check for local bakp4 before continuing.  Save for --recover option
-
-	#sdstatus=`./adb shell "if [ -e /sdcard/bakp4 ]; then  echo 1; fi`		#  Check for successful file creation on internal storage
-	#if [ "$sdstatus" != "1" ]; then
-	#	printf  "FATAL:  Failure to create mmcblk0p4 backup on internal storage (/sdcard).\n\n"
-	#	exit 1
-	#fi
-	# 
-	#
-	#./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard2/bakp4 > /dev/null  				#  Copy P4 data to external storage
-	#
-	#sdstatus=`./adb shell "if [ -e /sdcard2/bakp4 ]; then  echo 1; fi`				#  Check that SD Card Backup was made
-	#if [ "$sdstatus" != "1" ]; then
-	#	printf  "WARNING: A backup of your Partition 4 was not made on the SD Card.\n"
-	#	printf  "Is an SD Card in your phone? Is it full?\n"
-	#	printf  "It's recommended that a backup is made on an SD Card.\n\n"
-	#	printf  "You can continue without making a backup, but it's a good idea.\n"
-	#	
-	#	SDBackup(){
-	#	printf  "Continue without SD Card backup?"
-	#	GetYN
-	#	}
-	#
-	#rm sdstatus
-
-	./adb pull /sdcard/bakp4 ./bakp4  2> /dev/null							#  Pull file from internal storage to local machine
+	$adbl pull /sdcard/bakp4 ./bakp4  2> /dev/null							#  Pull file from internal storage to local machine
 
 	if [ ! -e ./bakp4 ]; then	
       	PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
 		exit 1
 	fi
+	
+	if [ $sdcardBAK -ge 1 ]; then
+		PrintBoth "Copying backup to SD Card\n\n"
+		$adbl shell dd if=/sdcard/bakp4 of=/sdcard2/bakp4 > /dev/null
+		$adbl pull /sdcard2/bakp4 ./bakp4a  2> /dev/null
+		if [ ! -e ./bakp4a ]; then
+			if [ $sdcardBAK = 2 ]; then
+				PrintBoth  "FATAL:  Backup mmcblk0p4 to SD Card failed.\n\n"
+				exit 1
+			else
+				PrintBoth  "WARNING:  Backup mmcblk0p4 to SD Card failed.\n\n"
+				PrintLog  "Ignoring.\n"
+			fi
+		fi
+	fi	
+
 	
 	if [ $superCID = 1 ]; then
 		PrintBoth  "Applying SuperCID mod to backup P4.\n\n"
@@ -342,7 +342,7 @@ BackupP4() {
 
 KillP4() {
         PrintLog "In KillP4()\n"
-	./adb push ./killp4 /sdcard > /dev/null					# Load corrupt p4 file onto internal storage
+	$adbl push ./killp4 /sdcard > /dev/null					# Load corrupt p4 file onto internal storage
 
 	#loadedkill = `./adb shell "if [ -e /sdcard/killp4 ]; then echo 1; fi"`
 	#if [ $loadedkill != 1 ]; then
@@ -350,13 +350,13 @@ KillP4() {
 	#	exit 1
 	#fi
 
-	./adb shell "dd if=/sdcard/killp4 of=/dev/block/mmcblk0p4" > /dev/null		# Flash corrupt p4 file
-	./adb shell "rm /sdcard/killp4"	 > /dev/null								# Clean up
+	$adbl shell "dd if=/sdcard/killp4 of=/dev/block/mmcblk0p4" > /dev/null		# Flash corrupt p4 file
+	$adbl shell "rm /sdcard/killp4"	 > /dev/null								# Clean up
 
 	PrintBoth  "Rebooting...\n\n"
 
 	sleep 2
-	./adb reboot													# Complete force QDL
+	$adbl reboot													# Complete force QDL
         PrintLog "Exiting KillP4()\n"
 }
 
@@ -389,11 +389,11 @@ BackupOnly() {
 	PrintBoth  "\nPreparing...\n"
 
 	sleep 2
-	./adb kill-server > /dev/null
-	./adb start-server > /dev/null
+	$adbl kill-server > /dev/null
+	$adbl start-server > /dev/null
 
 	BackupP4
-	./adb reboot
+	$adbl reboot
 	PrintBoth "Done\n"
 	exit 0
 }
@@ -447,8 +447,8 @@ SuperCID() {
 	PrintBoth  "\nPreparing...\n"
 
 	sleep 2
-	./adb kill-server > /dev/null
-	./adb start-server > /dev/null
+	$adbl kill-server > /dev/null
+	$adbl start-server > /dev/null
 
 	superCID=1
 	
@@ -463,11 +463,11 @@ SuperCID() {
 		mv ./bakbakp4 ./bakp4
 	fi
 	
-	./adb push ./cidp4 /sdcard > /dev/null
-	./adb shell "dd if=/sdcard/cidp4 of=/dev/block/mmcblk0p4" > /dev/null
-	./adb shell "rm /sdcard/cidp4" > /dev/null
+	$adbl push ./cidp4 /sdcard > /dev/null
+	$adbl shell "dd if=/sdcard/cidp4 of=/dev/block/mmcblk0p4" > /dev/null
+	$adbl shell "rm /sdcard/cidp4" > /dev/null
 	
-	./adb reboot
+	$adbl reboot
 	PrintBoth "Done\n"
 	exit 0
 }
@@ -487,8 +487,8 @@ Interactive() {
 
 
         sleep 2
-	./adb kill-server > /dev/null
-	./adb start-server > /dev/null
+	$adbl kill-server > /dev/null
+	$adbl start-server > /dev/null
 
 
 	PrintScreen  "This phase backs up /dev/block/mmcblk0p4 from your phone to this machine.  In\n" 
@@ -523,9 +523,7 @@ Interactive() {
 	PrintScreen  "The final step is restoring your backup /dev/block/mmcblk0p4./n/n"
 	PrintScreen  "Once again, if this process hangs at \"Waiting for /dev/"$brickdrive"4...\"\n"
 	PrintScreen  "Press and hold the power button on your phone for no less than 30 seconds and\n"
-	PrintScreen  "then release it.  The process should wake back up a few seconds afterwards.\n\n"
-	PrintScreen  "If this process fails to complete you will need to complete the manual steps\n"
-	PrintScreen  "using the post on XDA.  In that case, your bricked phone should be\n"
+	PrintScreen  "then release it.  If you need to perform manual recovery, your bricked phone should be\n"
 	PrintScreen  "accessible at /dev/$brickdrive\n\n"
 
 	RestoreP4
@@ -567,7 +565,7 @@ DisplayHelp() {
 ####################
 
 clear
-PrintScreen "JET - Jewel/Evita Tool"kit" v$version\n\n"
+PrintScreen "JET - Jewel/Evita Tool\"kit\" v$version\n\n"
 
 mode=Interactive
 for opt ; do
