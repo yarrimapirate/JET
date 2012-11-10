@@ -23,7 +23,7 @@
 #  ===  Variables  ===  #
 #########################
 
-version="0.3beta"
+version="0.3.1beta"
 logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
 verbose=1               # Interactive, On by default
 superCID=1				# Apply SuperCID mod during downgrade, On by default
@@ -172,12 +172,15 @@ CheckBrick() {				# QDL device detection
 
 	timeout=0
 	tries=0
+
+	PrintBoth "Waking Device...\n\n"
+	WakeQDL
+
 	while [ tries != 3 ]
 	do
-		PrintBoth "Waking Device...\n\n"
-		WakeQDL
 		
 		dwatch=`dmesg | tail -5 | grep "<" | awk '{print $2}' | sed s/":"//`
+		printf "$dwatch"
 		
 		if [ ${#dwatch} = 3 ]; then
 			case $dwatch in
@@ -187,6 +190,7 @@ CheckBrick() {				# QDL device detection
 		timeout=$(($timeout+1))
 		if [ $timeout = 1000 ]; then
 			Printboth "Timeout.  Retrying..."
+			WakeQDL
 			tries=$(($tries+1+))
 		fi
 	done
@@ -287,31 +291,6 @@ BackupP4() {
 	PrintBoth  "Pulling /dev/block/mmcblk0p4 backup from phone...\n\n"
 
 	./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4 > /dev/null		#  Copy P4 data to internal storage
-
-	#  Redundant since we check for local bakp4 before continuing.  Save for --recover option
-
-	#sdstatus=`./adb shell "if [ -e /sdcard/bakp4 ]; then  echo 1; fi`		#  Check for successful file creation on internal storage
-	#if [ "$sdstatus" != "1" ]; then
-	#	printf  "FATAL:  Failure to create mmcblk0p4 backup on internal storage (/sdcard).\n\n"
-	#	exit 1
-	#fi
-	# 
-	#
-	#./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard2/bakp4 > /dev/null  				#  Copy P4 data to external storage
-	#
-	#sdstatus=`./adb shell "if [ -e /sdcard2/bakp4 ]; then  echo 1; fi`				#  Check that SD Card Backup was made
-	#if [ "$sdstatus" != "1" ]; then
-	#	printf  "WARNING: A backup of your Partition 4 was not made on the SD Card.\n"
-	#	printf  "Is an SD Card in your phone? Is it full?\n"
-	#	printf  "It's recommended that a backup is made on an SD Card.\n\n"
-	#	printf  "You can continue without making a backup, but it's a good idea.\n"
-	#	
-	#	SDBackup(){
-	#	printf  "Continue without SD Card backup?"
-	#	GetYN
-	#	}
-	#
-	#rm sdstatus
 
 	./adb pull /sdcard/bakp4 ./bakp4  2> /dev/null							#  Pull file from internal storage to local machine
 
@@ -523,9 +502,7 @@ Interactive() {
 	PrintScreen  "The final step is restoring your backup /dev/block/mmcblk0p4./n/n"
 	PrintScreen  "Once again, if this process hangs at \"Waiting for /dev/"$brickdrive"4...\"\n"
 	PrintScreen  "Press and hold the power button on your phone for no less than 30 seconds and\n"
-	PrintScreen  "then release it.  The process should wake back up a few seconds afterwards.\n\n"
-	PrintScreen  "If this process fails to complete you will need to complete the manual steps\n"
-	PrintScreen  "using the post on XDA.  In that case, your bricked phone should be\n"
+	PrintScreen  "then release it.  If you need to perform manual recovery, your bricked phone should be\n"
 	PrintScreen  "accessible at /dev/$brickdrive\n\n"
 
 	RestoreP4
