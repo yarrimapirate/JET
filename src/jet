@@ -23,10 +23,10 @@
 #  ===  Variables  ===  #
 #########################
 
-version="0.3.1beta-2"
+version="0.3.3beta"
 logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
 verbose=1               # Interactive, On by default
-superCID=1				# Apply SuperCID mod during downgrade, On by default
+superCID=1              # Apply SuperCID mod during downgrade, On by default
 
 #################################
 #  ===  Utility Functions  ===  #
@@ -78,7 +78,7 @@ Init() {
 			exit 1;
 		fi
 	fi
-	PrintLog "HTC EVO 4G LTE HBOOT Downgrade Tool v$version\n"
+	PrintLog "JET - Jewel/Evita Toolkit v$version\n"
 	PrintLog "$(date)\n"
 	PrintLog "$(uname -a)\n"
 
@@ -179,7 +179,7 @@ CheckBrick() {				# QDL device detection
 	while [ $tries != 3 ]
 	do
 		
-		dwatch=`dmesg | tail -5 | grep "<" | sed s/"\["// | awk '{print $2}' | sed s/":"//`
+		dwatch=`dmesg | tail -10 | grep "<" | sed s/"\["// | awk '{print $2}' | sed s/":"//`
 				
 		if [ ${#dwatch} = 3 ]; then
 			case $dwatch in
@@ -188,7 +188,7 @@ CheckBrick() {				# QDL device detection
 		fi
 		timeout=$(($timeout+1))
 		if [ $timeout = 1000 ]; then
-			PrintBoth "Timeout.  Retrying..."
+			PrintBoth "Timeout.  Retrying...\n"
 			WakeQDL
 			tries=$(($tries+1))
 			timeout=0
@@ -322,12 +322,6 @@ BackupP4() {
 KillP4() {
         PrintLog "In KillP4()\n"
 	./adb push ./killp4 /sdcard > /dev/null					# Load corrupt p4 file onto internal storage
-
-	#loadedkill = `./adb shell "if [ -e /sdcard/killp4 ]; then echo 1; fi"`
-	#if [ $loadedkill != 1 ]; then
-	#	printf  "FATAL:  Unable to load corrupt mmcblk0p4 file onto internal storage.\n\n"
-	#	exit 1
-	#fi
 
 	./adb shell "dd if=/sdcard/killp4 of=/dev/block/mmcblk0p4" > /dev/null		# Flash corrupt p4 file
 	./adb shell "rm /sdcard/killp4"	 > /dev/null								# Clean up
@@ -519,7 +513,6 @@ Interactive() {
 
 
 DisplayHelp() {
-#	PrintScreen "Invalid command line argument specified.\n\n"
 	PrintScreen "Usage:  jet [options]\n\n"
 	PrintScreen "   -b, --backup          Backup P4 and generate failsafe P4 only.  (No QDL force)\n"
 	PrintScreen "   -c, --cidpreserve     Do not apply SuperCID mod to backup P4 file\n"
@@ -544,28 +537,27 @@ DisplayHelp() {
 ####################
 
 #clear
-PrintScreen "JET - Jewel/Evita Tool"kit" v$version\n\n"
+PrintScreen "JET - Jewel/Evita Toolkit v$version\n\n"
 
 mode=Interactive
 PrintLog "cmdline args: "
 for opt ; do
-        PrintLog " $opt"
-	PrintLog " "
+        PrintLog " $opt\n"
         case $opt in
-        -b | --backup) mode=BackupOnly;;
-		-c | --cidpreserve) superCID=0;;
-		-d | --detect) mode=CheckBrick;;
-		-k | --kill) mode=Brick;;
-		-q | --quiet) verbose=0;;
-		-r | --recover) mode=Recover;;
-		-s | --supercid) mode=SuperCID;;
-		-u | --unbrick) mode=Unbrick;;
-		-v | --verbose) verbose=1;;
-		-h | --help) DisplayHelp;;
-		*) { PrintScreen "Invalid argument: $opt\n"; DisplayHelp; };;                  # handles -h, --help and any undefined args
-	esac
+                -b | --backup) mode=BackupOnly;;
+                -c | --cidpreserve) superCID=0;;
+                -d | --detect) mode=CheckBrick;;
+                -k | --kill) mode=Brick;;
+                -q | --quiet) verbose=0;;
+                -r | --recover) mode=Recover;;
+                -s | --supercid) mode=SuperCID;;
+                -u | --unbrick) mode=Unbrick;;
+                -v | --verbose) verbose=1;;
+                -h | --help) DisplayHelp;;
+                *) { PrintScreen "Invalid argument: $opt\n"; DisplayHelp; };;
+        esac
 done 
-PrintLog "\n"
+
 Init
 
 $mode
