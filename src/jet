@@ -179,7 +179,7 @@ CheckBrick() {				# QDL device detection
 	while [ $tries != 3 ]
 	do
 		
-		dwatch=`dmesg | tail -5 | grep "<" | awk '{print $2}' | sed s/":"//`
+		dwatch=`dmesg | tail -5 | grep "<" | sed s/"\["// | awk '{print $2}' | sed s/":"//`
 				
 		if [ ${#dwatch} = 3 ]; then
 			case $dwatch in
