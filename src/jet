@@ -23,7 +23,7 @@
 #  ===  Variables  ===  #
 #########################
 
-version="0.3.1beta"
+version="0.3.1beta-2"
 logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
 verbose=1               # Interactive, On by default
 superCID=1				# Apply SuperCID mod during downgrade, On by default
@@ -176,7 +176,7 @@ CheckBrick() {				# QDL device detection
 	PrintBoth "Waking Device...\n\n"
 	WakeQDL
 
-	while [ tries != 3 ]
+	while [ $tries != 3 ]
 	do
 		
 		dwatch=`dmesg | tail -5 | grep "<" | awk '{print $2}' | sed s/":"//`
@@ -191,10 +191,11 @@ CheckBrick() {				# QDL device detection
 			PrintBoth "Timeout.  Retrying..."
 			WakeQDL
 			tries=$(($tries+1))
+			timeout=0
 		fi
 	done
 
-	if [ tries = 3 ]; then
+	if [ $tries = 3 ]; then
 		PrintBoth "Cannot find emmc partitons.  Exiting...\n\n"
 		exit 1
 	fi
@@ -518,13 +519,13 @@ Interactive() {
 
 
 DisplayHelp() {
-	PrintScreen "Invalid command line argument specified.\n\n"
+#	PrintScreen "Invalid command line argument specified.\n\n"
 	PrintScreen "Usage:  jet [options]\n\n"
 	PrintScreen "   -b, --backup          Backup P4 and generate failsafe P4 only.  (No QDL force)\n"
 	PrintScreen "   -c, --cidpreserve     Do not apply SuperCID mod to backup P4 file\n"
 	PrintScreen "   -d, --detect          Detect eMMC partitions in QDL mode\n"
 	PrintScreen "   -h, --help            Print this help and exit\n"
-	PrintScreen "   -i, --interactive     Interactive HBOOT Downgrade (Default)"
+	PrintScreen "   -i, --interactive     Interactive HBOOT Downgrade (Default)\n"
 	PrintScreen "   -k, --kill            Kill P4 to force QDL mode (Be careful with this.)\n"
 	PrintScreen "   -q, --quiet           Suppress all display output\n"
 	PrintScreen "   -r, --recover         Downgrade HBOOT and load existing backup P4\n"
@@ -542,11 +543,14 @@ DisplayHelp() {
 #  ===  Main  ===  #
 ####################
 
-clear
+#clear
 PrintScreen "JET - Jewel/Evita Tool"kit" v$version\n\n"
 
 mode=Interactive
+PrintLog "cmdline args: "
 for opt ; do
+        PrintLog " $opt"
+	PrintLog " "
         case $opt in
         -b | --backup) mode=BackupOnly;;
 		-c | --cidpreserve) superCID=0;;
@@ -557,10 +561,11 @@ for opt ; do
 		-s | --supercid) mode=SuperCID;;
 		-u | --unbrick) mode=Unbrick;;
 		-v | --verbose) verbose=1;;
-		*) DisplayHelp;;                  # handles -h, --help and any undefined args
+		-h | --help) DisplayHelp;;
+		*) { PrintScreen "Invalid argument: $opt\n"; DisplayHelp; };;                  # handles -h, --help and any undefined args
 	esac
 done 
-
+PrintLog "\n"
 Init
 
 $mode
