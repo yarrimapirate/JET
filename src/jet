@@ -33,7 +33,7 @@ superCID=1              # Apply SuperCID mod during downgrade, On by default
 #################################
 
 PrintScreen() {         # Print to screen, if enabled.
-        if [ $verbose=1 ] ; then
+        if [ $verbose = 1 ] ; then
 	        printf "$1"
 	fi
 }
@@ -179,7 +179,7 @@ CheckBrick() {				# QDL device detection
 	while [ $tries != 3 ]
 	do
 		
-		dwatch=`dmesg | tail -10 | grep "<" | sed s/"\["// | awk '{print $2}' | sed s/":"//`
+		dwatch=`dmesg | tail -9 | grep "<" | sed s/"\["// | awk '{print $2}' | sed s/":"//`
 				
 		if [ ${#dwatch} = 3 ]; then
 			case $dwatch in
@@ -214,6 +214,12 @@ CheckBrick() {				# QDL device detection
 
 FlashP12() {
         PrintLog "In FlashP12()\n"
+	PrintLog "\n\ndmesg | tail -20\n"
+	if [ $logfile ] ; then 
+	        dmesg | tail -20 >> $logfile
+		PrintLog "\n\nlsusb\n"
+		lsusb >> $logfile
+	fi
 	flashresult=""
 
 	PrintBoth  "Now flashing the bootloader.\n\n"
@@ -229,6 +235,10 @@ FlashP12() {
 		PrepQDL
 		./emmc_recover -q -f hboot.nb0 -d /dev/"$brickdrive"12 -c 24576 | tee ./result	# Flash Signed HBoot
 		flashresult=`cat ./result| tail -1`
+		PrintLog "\n\nemmc_recover -q -f hboot.nb0 -d /dev/$brickdrive12 -c 24576 output:\n"
+		if [ $logfile ] ; then
+		        cat ./result >> $logfile
+		fi
 		rm ./result
 		if [ "$flashresult" != "Detected mode-switch" ]; then
 			PrintBoth "Error flashing HBOOT!!\n\n"
