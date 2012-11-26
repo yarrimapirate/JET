@@ -45,29 +45,31 @@ device_codename=""
 #  ===  Utility Functions  ===  #
 #################################
 
-PrintScreen() {         # Print to screen, if enabled.
+PrintScreen() {         
+        # Print to screen, if enabled.
         if [ $verbose = 1 ] ; then
 	        printf "$1"
 	fi
 }
 
 
-PrintLog() {            # Print to log file, if enabled.
+PrintLog() {            
+        # Print to log file, if enabled.
         if [ -w $logfile ] ; then
 	        printf "$1" >> $logfile
 	fi
 }
 
 
-PrintBoth() {           # Print to screen and log
+PrintBoth() {           
+        # Print to screen and log
 	PrintScreen "$1"
 	PrintLog "$1"
 }
 
 
 GetYN() {
-	while true;
-	do
+	while true ; do
 		PrintScreen "[Y]es or [N]o?"
 		read FINAL
 		case $FINAL in
@@ -122,6 +124,8 @@ Init() {
 	elif [ ! -x "./emmc_recover" ] ; then
 	        chmod +x ./emmc_recover
 	fi
+	
+	
 	###  Check USB devices
 	
 	###  Check for USB 3.0 ports
@@ -212,7 +216,7 @@ Init() {
 
 
 WakeQDL() {			
-        #Spam pbl_reset until the phone responds
+        ###  Spam pbl_reset until the phone responds
         PrintLog "In WakeQDL()\n"
         count=1
 	wakeresult=`./emmc_recover -r | tail -1`
@@ -229,12 +233,12 @@ PrepQDL() {
         PrintLog "In PrepQDL()\n"
         PrintBoth  "Resetting qcserial module...\n"
 	
-	#  Reset qcserial kernel module and clear old blocks
+	###  Reset qcserial kernel module and clear old blocks
         modprobe -r qcserial					
         sleep 1
         PrintBoth  "Creating block device...\n"
 	
-	#  Create block device for emmc_recover
+	###  Create block device for emmc_recover
         mknod /dev/ttyUSB0 c 188 0				
         PrintBoth  "Waking QDL device...\n"
         WakeQDL
@@ -246,7 +250,7 @@ PrepQDL() {
 
 
 CheckBrick() {				
-        #  QDL device detection
+        ###  QDL device detection
 	PrintLog "In CheckBrick()\n"
 	PrintBoth "Device detection started...\n"
 
@@ -308,8 +312,7 @@ FlashP12() {
 		PrintScreen  "accessible at /dev/$brickdrive\n\n"
 	fi
 
-	while [ "$flashresult" != "Detected mode-switch" ] ;
-	do
+	while [ "$flashresult" != "Detected mode-switch" ] ; do
 		PrepQDL
 		./emmc_recover -q -f hboot.nb0 -d /dev/${brickdrive}12 -c 24576 | tee ./result	# Flash Signed HBoot
 		flashresult=$(cat ./result | tail -1)
