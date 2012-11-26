@@ -4,7 +4,6 @@
 #  
 #    A collection of useful tools for the HTC EVO 4G LTE and HTC One X
 #    
-
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
 #    the Free Software Foundation, either version 3 of the License, or
@@ -23,10 +22,24 @@
 #  ===  Variables  ===  #
 #########################
 
-version="0.3.3beta"
+script_name="JET - The Jewel/Evita Toolkit"
+script_version="0.3.3beta"
+script_copyright="Copyright (C) 2012 yarrimapirate, SouLShadow"
+script_license="Licensed under the GNU GPLv3+:  <http://gnu.org/licenses/>"
+
 logfile="logfile.txt"   # Unset to disable logging.  NOT RECOMMENDED
 verbose=1               # Interactive, On by default
 superCID=1              # Apply SuperCID mod during downgrade, On by default
+TMOUT=60
+
+adb=`which adb 2> /dev/null`
+fastboot=`which fastboot 2> /dev/null`
+declare -a usb3_bus
+
+device_bootloader_version=""
+device_codename=""
+
+
 
 #################################
 #  ===  Utility Functions  ===  #
@@ -40,7 +53,7 @@ PrintScreen() {         # Print to screen, if enabled.
 
 
 PrintLog() {            # Print to log file, if enabled.
-        if [ $logfile ] ; then
+        if [ -w $logfile ] ; then
 	        printf "$1" >> $logfile
 	fi
 }
@@ -71,64 +84,124 @@ GetYN() {
 
 
 Init() {
-        #  Logging
+        ###  Logging
 	if [ ! -e $logfile ]; then
 	        if ! touch $logfile ; then 
 		        printf "FATAL:  Unable to create file \'$logfile\'\n\n"
 			exit 1;
 		fi
 	fi
-	PrintLog "JET - Jewel/Evita Toolkit v$version\n"
+	PrintLog "$script_name $version\n\n"
 	PrintLog "$(date)\n"
 	PrintLog "$(uname -a)\n"
 
-	#  Check for Root
-	if [ "$(whoami)" != 'root' ]; then
-			PrintBoth "$0 requires root.  (sudo $0)\n"
-			exit 1;
+	###  Check for Root
+	if [ $EUID -ne 0 ] ; then
+	        PrintBoth "$0 requires root.  (sudo $0)\n"
+		exit 1
+	fi
+	
+	###  Check for required universal files
+	if [ ! -e ${adb:="./adb"} ] ; then
+		PrintBoth  "FATAL:  File \'adb\' missing.\n\n"
+		exit 1
+	elif [ ! -x $adb ] ; then
+	        chmod +x $adb
 	fi
 
-	#  Check for required files
-	if [ ! -e "./killp4" ]; then
+	if [ ! -e ${fastboot:="./fastboot"} ] ; then
+		PrintBoth  "FATAL:  File \'fastboot\' missing.\n\n"
+		exit 1
+	elif [ ! -x $fastboot ] ; then
+		chmod +x $fastboot
+	fi
+	
+	if [ ! -e "./emmc_recover" ] ; then
+		PrintBoth  "FATAL:  File \'emmc_recover\' missing.\n\n"
+		exit 1
+	elif [ ! -x "./emmc_recover" ] ; then
+	        chmod +x ./emmc_recover
+	fi
+	###  Check USB devices
+	
+	###  Check for USB 3.0 ports
+	###      TODO: finish checks for device connected on usb 3.0
+	i=0
+	for word in $(lsusb -d 1d6b:0003 | cut -f 2 -d " ") ; do
+	        usb3_bus[$((i++))]=$((word))
+	done
+	unset i
+	PrintLog "USB 3.0 Buses found: ${#usb3_bus[*]}\n"
+	for bus in ${usb3_bus[*]} ; do
+	        PrintLog "   Bus 00${bus}\n"
+	done
+	
+	###  First we check if device is already in QDL mode
+	lsusb_check="$(lsusb -d 05c6:9008)"
+	if [ -n "$lsusb_check" ] ; then
+	        PrintLog "Device detected in QDL mode.\n"
+		
+		###  Check if connected via USB 3.0
+		for bus in ${usb3_bus[*]} ; do
+		        if [ $(($(printf "$lsusb_check" | cut -f 2 -d " "))) -eq $bus ] ; then
+			        PrintBoth "FATAL: Device connected to USB 3.0 port.  Try a different USB port\n"
+		                exit 1
+			fi
+		done
+		
+		###  Do something here!
+		###  Find a way to detect which device is connected  and set device_ vars
+		###  - possible solution: use checksums of each partition for each device
+		###    this not only allows us to determine what mfg and device, but also
+		###    will show us what, if any, partitions need repair.
+		###  - At this point we know sbl1, sbl2, tz, rpm, and sbl3 are intact (otherwise
+		###    we wouldn't have made it this far...until we get the 8960.hex file(s))
+		
+	elif [ -n "$(lsusb -d 0bb4:)" ] ; then  
+	###  Only allow HTC devices, so far
+	device_mfg="htc"
+	
+	###  Next, if device is connected and NOT bricked we look up device info via fastboot.
+	###  If in ROM or Recovery it will reboot in to bootloader.
+	###  If already in bootloader adb commands will do nothing and proceed to fastboot
+	        $adb kill-server 2>&1 /dev/null
+		$adb start-server 2>&1 /dev/null
+		sleep 2
+		if [ "$($adb get-state)" = "device" ] ; then
+		        getprop=$($adb shell getprop)
+			$adb reboot bootloader 2>&1 /dev/null
+			PrintLog "$getprop"
+		fi
+		$fastboot getvar all 2>&1 | sed s/INFO// | sed s/"all: Done\!"// | sed s/:// > ./fastboot_vars.txt
+		cat ./fastboot_vars.txt >> $logfile
+		device_codename=$(cat ./fastboot_vars.txt | grep "product" | cut -f 2 -d " ")
+		device_bootloader_version=$(cat ./fastboot_vars.txt | grep "version-bootloader" | cut -f 2 -d " ")
+		device_security=$(cat ./fastboot_vars.txt | grep "security" | cut -f 2 -d " ")
+		device_imei=$(cat ./fastboot_vars.txt | grep "imei" | cut -f 2 -d " ")
+		
+		$fastboot reboot 2> /dev/null
+#		rm ./fastboot_vars.txt
+	fi
+	
+	###  Check for required device specific files
+	if [ ! -d "./$device_mfg/$device_codename" ] ; then
+	        PrintBoth "FATAL: $device_model not supported.\n\n"
+		exit 1
+	fi
+	
+	if [ ! -e "./$device_mfg/$device_codename/killp4" ] ; then
 		PrintBoth  "FATAL:  File killp4 missing.\n\n"
 		exit 1
 	fi
 
-	if [ ! -e "./blankp4" ]; then
+	if [ ! -e "./$device_mfg/$device_codename/blankp4" ] ; then
 		PrintBoth  "FATAL:  File blankp4 missing.\n\n"
 		exit 1
 	fi
 
-	if [ ! -e "./hboot.nb0" ]; then
+	if [ ! -e "./$device_mfg/$device_codename/hboot.nb0" ] ; then
 		PrintBoth  "FATAL:  File hboot.nb0 missing.\n\n"
 		exit 1
-	fi
-
-	if [ ! -e "./emmc_recover" ]; then
-		PrintBoth  "FATAL:  File \'emmc_recover\' missing.\n\n"
-		exit 1
-	fi
-
-	if [ ! -e "./adb" ]; then
-		PrintBoth  "FATAL:  File \'adb\' missing.\n\n"
-		exit 1
-	fi
-
-	if [ ! -e "./fastboot" ]; then
-		PrintBoth  "FATAL:  File \'fastboot\' missing.\n\n"
-		exit 1
-	fi
-
-        if [ ! -x "./adb" ]; then
-	        chmod +x ./adb
-	fi
-	
-	if [ ! -x "./fastboot" ]; then
-        	chmod +x ./fastboot 
-	fi
-	
-	if [ ! -x "./emmc_recover" ]; then
-        	chmod +x ./emmc_recover
 	fi
 }
 
@@ -138,12 +211,12 @@ Init() {
 #############################
 
 
-WakeQDL() {			#Spam pbl_reset until the phone responds
+WakeQDL() {			
+        #Spam pbl_reset until the phone responds
         PrintLog "In WakeQDL()\n"
         count=1
 	wakeresult=`./emmc_recover -r | tail -1`
-        while [ "$wakeresult" = "Cannot reset device" ]
-	do 
+        while [ "$wakeresult" = "Cannot reset device" ] ; do 
 		wakeresult=`./emmc_recover -r | tail -1`
 		count=$(($count+1))
 	done 
@@ -155,19 +228,26 @@ WakeQDL() {			#Spam pbl_reset until the phone responds
 PrepQDL() {
         PrintLog "In PrepQDL()\n"
         PrintBoth  "Resetting qcserial module...\n"
-        modprobe -r qcserial					# Reset qcserial kernel module and clear old blocks
+	
+	#  Reset qcserial kernel module and clear old blocks
+        modprobe -r qcserial					
         sleep 1
         PrintBoth  "Creating block device...\n"
-        mknod /dev/ttyUSB0 c 188 0				# Create block device for emmc_recover
+	
+	#  Create block device for emmc_recover
+        mknod /dev/ttyUSB0 c 188 0				
         PrintBoth  "Waking QDL device...\n"
         WakeQDL
+	
+	###  TODO: double check timing for Evita
         sleep 2
         PrintLog "Exiting PrepQDL()\n"
 }
 
 
-CheckBrick() {				# QDL device detection
-    PrintLog "In CheckBrick()\n"
+CheckBrick() {				
+        #  QDL device detection
+	PrintLog "In CheckBrick()\n"
 	PrintBoth "Device detection started...\n"
 
 	timeout=0
@@ -176,9 +256,7 @@ CheckBrick() {				# QDL device detection
 	PrintBoth "Waking Device...\n\n"
 	WakeQDL
 
-	while [ $tries != 3 ]
-	do
-		
+	while [ $tries != 3 ] ;	do
 		dwatch=`dmesg | tail -9 | grep "<" | sed s/"\["// | awk '{print $2}' | sed s/":"//`
 				
 		if [ ${#dwatch} = 3 ]; then
@@ -230,12 +308,12 @@ FlashP12() {
 		PrintScreen  "accessible at /dev/$brickdrive\n\n"
 	fi
 
-	while [ "$flashresult" != "Detected mode-switch" ]
+	while [ "$flashresult" != "Detected mode-switch" ] ;
 	do
 		PrepQDL
-		./emmc_recover -q -f hboot.nb0 -d /dev/"$brickdrive"12 -c 24576 | tee ./result	# Flash Signed HBoot
-		flashresult=`cat ./result| tail -1`
-		PrintLog "\n\nemmc_recover -q -f hboot.nb0 -d /dev/$brickdrive12 -c 24576 output:\n"
+		./emmc_recover -q -f hboot.nb0 -d /dev/${brickdrive}12 -c 24576 | tee ./result	# Flash Signed HBoot
+		flashresult=$(cat ./result | tail -1)
+		PrintLog "\n\nemmc_recover -q -f hboot.nb0 -d /dev/${brickdrive}12 -c 24576 output:\n"
 		if [ $logfile ] ; then
 		        cat ./result >> $logfile
 		fi
@@ -263,12 +341,12 @@ BackupP4() {
 	PrintBoth "Backing up mmcblk0p4 to /sdcard/bak4\n"
 	PrintBoth  "Rebooting to bootloader...\n\n"
 
-	./adb reboot bootloader
+	$adb reboot bootloader
 
 	PrintBoth  "Getting IMEI value...\n\n"
 
 	sleep 2
-	./fastboot getvar imei 2>&1 | grep "imei:" | sed s/"imei: "// > imei.txt	# Get IMEI from phone and store
+	$fastboot getvar imei 2>&1 | grep "imei:" | sed s/"imei: "// > imei.txt	# Get IMEI from phone and store
 
 	PrintBoth  "Building failsafe P4 file...\n\n"
 
@@ -286,12 +364,12 @@ BackupP4() {
 
 	PrintBoth  "Success.  Rebooting phone.\n\n"
 
-	./fastboot reboot 2> /dev/null
-	./adb wait-for-device
+	$fastboot reboot 2> /dev/null
+	$adb wait-for-device
 
 	PrintBoth  "Rebooting to recovery...\n\n"
 
-	./adb reboot recovery
+	$adb reboot recovery
 
 	PrintBoth  "Waiting 45s for recovery...\n\n"
 
@@ -300,9 +378,9 @@ BackupP4() {
 
 	PrintBoth  "Pulling /dev/block/mmcblk0p4 backup from phone...\n\n"
 
-	./adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4 > /dev/null		#  Copy P4 data to internal storage
+	$adb shell dd if=/dev/block/mmcblk0p4 of=/sdcard/bakp4 > /dev/null		#  Copy P4 data to internal storage
 
-	./adb pull /sdcard/bakp4 ./bakp4  2> /dev/null							#  Pull file from internal storage to local machine
+	$adb pull /sdcard/bakp4 ./bakp4  2> /dev/null							#  Pull file from internal storage to local machine
 
 	if [ ! -e ./bakp4 ]; then	
       	PrintBoth  "FATAL:  Backup mmcblk0p4 creation failed.\n\n"
@@ -331,15 +409,15 @@ BackupP4() {
 
 KillP4() {
         PrintLog "In KillP4()\n"
-	./adb push ./killp4 /sdcard > /dev/null					# Load corrupt p4 file onto internal storage
+	$adb push ./killp4 /sdcard > /dev/null					# Load corrupt p4 file onto internal storage
 
-	./adb shell "dd if=/sdcard/killp4 of=/dev/block/mmcblk0p4" > /dev/null		# Flash corrupt p4 file
-	./adb shell "rm /sdcard/killp4"	 > /dev/null								# Clean up
+	$adb shell "dd if=/sdcard/killp4 of=/dev/block/mmcblk0p4" > /dev/null		# Flash corrupt p4 file
+	$adb shell "rm /sdcard/killp4"	 > /dev/null								# Clean up
 
 	PrintBoth  "Rebooting...\n\n"
 
 	sleep 2
-	./adb reboot													# Complete force QDL
+	$adb reboot													# Complete force QDL
         PrintLog "Exiting KillP4()\n"
 }
 
@@ -372,11 +450,11 @@ BackupOnly() {
 	PrintBoth  "\nPreparing...\n"
 
 	sleep 2
-	./adb kill-server > /dev/null
-	./adb start-server > /dev/null
+	$adb kill-server > /dev/null
+	$adb start-server > /dev/null
 
 	BackupP4
-	./adb reboot
+	$adb reboot
 	PrintBoth "Done\n"
 	exit 0
 }
@@ -430,8 +508,8 @@ SuperCID() {
 	PrintBoth  "\nPreparing...\n"
 
 	sleep 2
-	./adb kill-server > /dev/null
-	./adb start-server > /dev/null
+	$adb kill-server > /dev/null
+	$adb start-server > /dev/null
 
 	superCID=1
 	
@@ -446,11 +524,11 @@ SuperCID() {
 		mv ./bakbakp4 ./bakp4
 	fi
 	
-	./adb push ./cidp4 /sdcard > /dev/null
-	./adb shell "dd if=/sdcard/cidp4 of=/dev/block/mmcblk0p4" > /dev/null
-	./adb shell "rm /sdcard/cidp4" > /dev/null
+	$adb push ./cidp4 /sdcard > /dev/null
+	$adb shell "dd if=/sdcard/cidp4 of=/dev/block/mmcblk0p4" > /dev/null
+	$adb shell "rm /sdcard/cidp4" > /dev/null
 	
-	./adb reboot
+	$adb reboot
 	PrintBoth "Done\n"
 	exit 0
 }
@@ -470,8 +548,8 @@ Interactive() {
 
 
         sleep 2
-	./adb kill-server > /dev/null
-	./adb start-server > /dev/null
+	$adb kill-server > /dev/null
+	$adb start-server > /dev/null
 
 
 	PrintScreen  "This phase backs up /dev/block/mmcblk0p4 from your phone to this machine.  In\n" 
@@ -521,21 +599,38 @@ Interactive() {
 
 }
 
+DisplayVersion() {
+        PrintScreen "$script_name $script_version\n"
+	PrintScreen "$script_copyright\n"
+	PrintScreen "$script_license\n"
+}
 
 DisplayHelp() {
-	PrintScreen "Usage:  jet [options]\n\n"
+	PrintScreen "Usage:  $script_name [options]\n\n"
 	PrintScreen "   -b, --backup          Backup P4 and generate failsafe P4 only.  (No QDL force)\n"
 	PrintScreen "   -c, --cidpreserve     Do not apply SuperCID mod to backup P4 file\n"
 	PrintScreen "   -d, --detect          Detect eMMC partitions in QDL mode\n"
-	PrintScreen "   -h, --help            Print this help and exit\n"
+	PrintScreen "   -h, --help            Display this help and exit\n"
 	PrintScreen "   -i, --interactive     Interactive HBOOT Downgrade (Default)\n"
 	PrintScreen "   -k, --kill            Kill P4 to force QDL mode (Be careful with this.)\n"
 	PrintScreen "   -q, --quiet           Suppress all display output\n"
 	PrintScreen "   -r, --recover         Downgrade HBOOT and load existing backup P4\n"
 	PrintScreen "   -s, --supercid        Apply SuperCID mod to UNBRICKED phone\n"
 	PrintScreen "   -u, --unbrick         Reload backup P4 only (force exit QDL)\n"
-	PrintScreen "   -v  --verbose         Display all output\n\n"
-	exit 1
+	PrintScreen "   -v, --verbose         Display all output\n"
+	PrintScreen "       --version         Display version information and exit\n"
+	PrintScreen "\n"
+	PrintScreen "There are two types of options.  Those that toggle features (-c, -q, -V)\n"
+	PrintScreen "and those that select the mode of operation (-b, -d, -h, -i, -k, -r, -s, -u, -v)\n"
+	PrintScreen "\n"
+	PrintScreen "The FIRST occurence of -h or -v will display the help or version, respectively, and exit.\n"
+	PrintScreen "\n"
+	PrintScreen "The LAST occurence of any other option type is what will be used.  For example:\n"
+	PrintScreen "   jet -k -u -i -q -v\n"
+	PrintScreen "would be the same as:\n"
+	PrintScreen "   jet -i -v\n"
+	PrintScreen ""
+	exit 0
 }
 
 #############################
@@ -546,29 +641,64 @@ DisplayHelp() {
 #  ===  Main  ===  #
 ####################
 
-#clear
-PrintScreen "JET - Jewel/Evita Toolkit v$version\n\n"
+### Move this to version, help, and interactive for future usage as a non-interactive cmdline utility
+#PrintScreen "JET - Jewel/Evita Toolkit $script_name $script_version\n\n"
 
-mode=Interactive
+### With the addition of optional, standalone features, accidental invocation of "Interactive" can be danerous
+### now default to display of help which includes usage suggestions
+### mode will be extended to handle multiple run time targets
+### ex: script -s -b -k -r -V
+### will be the same as: script -i
+### -r will eventually be split up as well.
+### switches like -i will be included for common usage patterns
+
+run_mode=DisplayHelp
+
 PrintLog "cmdline args: "
+
+### Parse cmdline options
+#if ! $opt ; then
+#        mode[0]=DisplayHelp
+#fi	
 for opt ; do
         PrintLog " $opt\n"
         case $opt in
-                -b | --backup) mode=BackupOnly;;
+                -b | --backup) run_mode=BackupOnly;;
                 -c | --cidpreserve) superCID=0;;
-                -d | --detect) mode=CheckBrick;;
-                -k | --kill) mode=Brick;;
+                -d | --detect) run_mode=CheckBrick;;
+		-h | --help) DisplayHelp;; # Display help and exit
+		-i | --interactive) run_mode=Interactive;;
+                -k | --kill) run_mode=Brick;;
                 -q | --quiet) verbose=0;;
-                -r | --recover) mode=Recover;;
-                -s | --supercid) mode=SuperCID;;
-                -u | --unbrick) mode=Unbrick;;
+                -r | --recover) run_mode=Recover;;
+                -s | --supercid) run_mode=SuperCID;;
+                -u | --unbrick) run_mode=Unbrick;;
                 -v | --verbose) verbose=1;;
-                -h | --help) DisplayHelp;;
-                *) { PrintScreen "Invalid argument: $opt\n"; DisplayHelp; };;
+		     --version) { DisplayVersion; exit 0; } ;; # Display version and exit
+                *) { PrintScreen "Invalid argument: $opt\n"; DisplayHelp; exit 1; } ;;
         esac
 done 
 
 Init
 
-$mode
+$run_mode
 
+exit 0
+
+### FUTURE IMPLEMENTATION:
+
+### Run Mode:
+### An array variable holding the names of functions to be executed or null.
+### While the total number of array elements can vary, there is a minimum of 6:
+### run_mode[0] = DisplayHelp
+### run_mode[1] = BackupP4
+### run_mode[2] = KillP4
+### run_mode[3] = CheckBrick
+### run_mode[4] = Flashp12
+### run_mode[5] = RestoreP4
+
+
+### interate through run_mode[] executing each function present
+#for branch in ${run_mode[*]} do
+#        $branch
+#done
